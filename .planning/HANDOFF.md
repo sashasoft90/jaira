@@ -21,8 +21,13 @@ stehender Auftrag, je protokolliert), via Doorway ins Logbuch:
   deklariert es → fremde Board-Kopien driften bis zum Refresh (dieses Board
   refreshed). notes steht in ticket.SuppliedFields (Validator-Regression im
   eigenen Lauf gefangen).
-- **JJ32B4** (volle Move-Vereinheitlichung) bewusst im Backlog — zu
-  invariantennah für den Schnelldurchlauf.
+- **JJ32B4** am 06.09. nachgezogen (Berk: "setz L137–L142 durch, agentisch
+  parallel"): **core/move.Move** trägt Gate+Claim+Write+Settle, alle vier
+  Aufrufer delegieren (Kern vom Koordinator mit 5 Vertrags-Tests, CLI- und
+  TUI-Migration von zwei parallelen Sonnet-Agenten mit eigenen Gates,
+  uncommitted übergeben — Integration und Commits seriell beim Koordinator).
+  grep: kein Status-SetScalar mehr außerhalb core/move. Suite -race RC=0,
+  16 Pakete. Via Doorway im Logbuch.
 
 **Kontrakt fürs nächste "go" nach einem Clear:** die Lane-Doku L104–L117
 wortgetreu wieder ausgeben — Volltext im Memory `go-contract-lane-doku`.
