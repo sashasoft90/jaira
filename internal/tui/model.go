@@ -23,6 +23,7 @@ import (
 	"github.com/BeMuCa/jaira/core/gitrepo"
 	"github.com/BeMuCa/jaira/core/identity"
 	"github.com/BeMuCa/jaira/core/lane"
+	"github.com/BeMuCa/jaira/core/move"
 	"github.com/BeMuCa/jaira/core/project"
 	"github.com/BeMuCa/jaira/core/session"
 	"github.com/BeMuCa/jaira/core/tag"
@@ -1337,11 +1338,18 @@ func (m *Model) applyMove() {
 		return
 	}
 	m.pending = nil
-	if _, err := m.store.Mutate(full.ID, moveMutation(target.ID, me, claiming)); err != nil {
+	// Move re-runs the gate itself; nothing has changed the ticket between the
+	// pre-check above and here, so it lands the same verdict and writes.
+	res, err := move.Move(m.store, env, full.ID, move.Request{
+		To: target.ID, Actor: me, ActorAliases: identity.Aliases(m.store.Root),
+		ClaimOnPull: true, Folder: m.settleFolder(), Prepare: m.settlePrepare(),
+	})
+	if err != nil {
 		m.notify(err.Error(), true)
 		return
 	}
-	trimMsg, trimErr := m.settleLane(target.ID, full.ID)
+	trimMsg := settleMessage(res.Trimmed, res.Filed, res.Holds, target.ID)
+	trimErr := res.SettleErr
 	m.finishMove(full.ID)
 	if m.mode == modeMessage {
 		// finishMove has worse news of its own; do not paper over it.
@@ -1356,23 +1364,6 @@ func (m *Model) applyMove() {
 	}
 	if trimMsg != "" {
 		m.notify(trimMsg, false)
-	}
-}
-
-// moveMutation is the write a move performs. The gated path and the forced one
-// share it so a forced move leaves behind exactly what a clean one would.
-func moveMutation(to, me string, claiming bool) func(*ticket.Ticket) error {
-	return func(t *ticket.Ticket) error {
-		if claiming {
-			if err := t.Doc().SetScalar(ticket.FieldAssignee, me); err != nil {
-				return err
-			}
-			t.Assignee = me
-		}
-		if err := t.Doc().SetScalar(ticket.FieldStatus, to); err != nil {
-			return err
-		}
-		return ticket.SetReady(t.Doc(), gate.Ready(t))
 	}
 }
 
@@ -1404,7 +1395,11 @@ func (m *Model) armForce() {
 func (m *Model) forceMove() {
 	p := m.pending
 	m.pending = nil
-	if _, err := m.store.Mutate(p.ticketID, moveMutation(p.target.ID, p.actor, p.claiming)); err != nil {
+	res, err := move.Move(m.store, m.gateEnv(), p.ticketID, move.Request{
+		To: p.target.ID, Actor: p.actor, ActorAliases: identity.Aliases(m.store.Root),
+		Force: true, ClaimOnPull: true, Folder: m.settleFolder(), Prepare: m.settlePrepare(),
+	})
+	if err != nil {
 		m.notify(err.Error(), true)
 		return
 	}
@@ -1413,7 +1408,8 @@ func (m *Model) forceMove() {
 		ticket.Handle(p.ticketID), p.target.Name, len(p.refusals))
 	b.WriteString(refusalBullets(p.refusals))
 
-	trimMsg, trimErr := m.settleLane(p.target.ID, p.ticketID)
+	trimMsg := settleMessage(res.Trimmed, res.Filed, res.Holds, p.target.ID)
+	trimErr := res.SettleErr
 	m.finishMove(p.ticketID)
 	if m.mode == modeMessage {
 		// finishMove has worse news of its own; do not paper over it.
@@ -1430,27 +1426,32 @@ func (m *Model) forceMove() {
 	m.notify(b.String(), false)
 }
 
-// settleLane enforces the just-entered lane's file rules, exactly as the
-// CLI's move does it: a doorway lane (logbook-on-entry) files everything
-// straight into the logbook with commits stamped first, a capped lane (holds)
-// trims the oldest beyond the newest Holds. moved names the ticket whose
-// arrival triggered this; a cap never trims it. The returned message names
-// every ticket that left — including the ones already gone when an error
-// stopped the loop, so even a partial sweep is never silent.
-func (m *Model) settleLane(laneID, moved string) (string, error) {
-	l, ok := m.lanes.Get(laneID)
-	if !ok {
-		return "", nil
-	}
-	folder := fmt.Sprintf("%s-%s",
+// settleFolder is the logbook folder (initials-date) a move's settle files
+// into, exactly as the CLI's move builds it.
+func (m *Model) settleFolder() string {
+	return fmt.Sprintf("%s-%s",
 		identity.Initials(identity.Current(m.store.Root)), time.Now().Format("20060102"))
+}
+
+// settlePrepare stamps commits on each ticket a settle files into the
+// logbook, exactly as the CLI's move does.
+func (m *Model) settlePrepare() func(*ticket.Ticket) error {
 	derive := m.gateEnv().DeriveCommits
-	trimmed, filed, err := lane.Settle(m.store, l, folder, moved, func(tk *ticket.Ticket) error {
+	return func(tk *ticket.Ticket) error {
 		_, serr := m.store.StampCommits(tk, derive)
 		return serr
-	})
+	}
+}
+
+// settleMessage turns a settle's result — as core/move.Result reports it —
+// into the notice a move write-site shows: a doorway lane (logbook-on-entry)
+// files everything straight into the logbook, a capped lane (holds) trims the
+// oldest beyond the newest Holds. The message names every ticket that left —
+// including the ones already gone when an error stopped the loop, so even a
+// partial sweep is never silent.
+func settleMessage(trimmed []ticket.Trimmed, filed bool, holds int, laneID string) string {
 	if len(trimmed) == 0 {
-		return "", err
+		return ""
 	}
 	var b strings.Builder
 	for _, tr := range trimmed {
@@ -1460,9 +1461,9 @@ func (m *Model) settleLane(laneID, moved string) (string, error) {
 			continue
 		}
 		fmt.Fprintf(&b, "%s left for the logbook (%s holds %d) — restore it with 'jaira restore %s'.\n",
-			ticket.Handle(tr.ID), laneID, l.Holds, filepath.Base(tr.Path))
+			ticket.Handle(tr.ID), laneID, holds, filepath.Base(tr.Path))
 	}
-	return b.String(), err
+	return b.String()
 }
 
 // finishMove puts the user back on the page the move was started from and

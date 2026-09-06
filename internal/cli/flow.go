@@ -11,6 +11,7 @@ import (
 	"github.com/BeMuCa/jaira/core/gate"
 	"github.com/BeMuCa/jaira/core/gitrepo"
 	"github.com/BeMuCa/jaira/core/lane"
+	"github.com/BeMuCa/jaira/core/move"
 	"github.com/BeMuCa/jaira/core/session"
 	"github.com/BeMuCa/jaira/core/ticket"
 )
@@ -175,98 +176,77 @@ one the real move would have returned.`,
 				if t, err = ticket.Decode(t.Doc(), t.Path); err != nil {
 					return err
 				}
-			} else {
-				if _, err := s.Mutate(t.ID, staged); err != nil {
-					return err
+				req := gate.Request{
+					To: to, Question: question, Reason: reason,
+					Actor: identity(), ActorAliases: identityAliases(),
 				}
-				if t, err = s.Load(t.ID); err != nil {
-					return err
-				}
-			}
-			env, _, err = loadEnv(s)
-			if err != nil {
-				return err
+				return reportDryRun(cmd, env, t, to, gate.CheckAdvance(env, t, req), force)
 			}
 
-			req := gate.Request{
-				To: to, Question: question, Reason: reason,
-				Actor: identity(), ActorAliases: identityAliases(),
-			}
-			vs := gate.CheckAdvance(env, t, req)
-			if dryRun {
-				return reportDryRun(cmd, env, t, to, vs, force)
-			}
-			if len(vs) > 0 && !force {
-				return &codedError{
-					code:       refusalCode(vs),
-					reason:     "gate_refused",
-					message:    fmt.Sprintf("cannot move %s to %s:\n%s", ticket.Handle(t.ID), to, bullets(vs)),
-					violations: vs,
-				}
-			}
-
-			t, err = s.Mutate(t.ID, func(t *ticket.Ticket) error {
-				if err := t.Doc().SetScalar(ticket.FieldStatus, to); err != nil {
+			res, err := move.Move(s, env, t.ID, move.Request{
+				To:           to,
+				Actor:        identity(),
+				ActorAliases: identityAliases(),
+				Force:        force,
+				Question:     question,
+				Reason:       reason,
+				Stage:        staged,
+				Reload: func() (gate.Env, error) {
+					env, _, err := loadEnv(s)
+					return env, err
+				},
+				ClaimOnPull: false,
+				Folder:      logbookFolder(),
+				Prepare: func(tk *ticket.Ticket) error {
+					_, err := s.StampCommits(tk, env.DeriveCommits)
 					return err
-				}
-				return ticket.SetReady(t.Doc(), gate.Ready(t))
+				},
 			})
 			if err != nil {
 				return err
 			}
-
-			// A doorway lane (logbook-on-entry) files everything straight into
-			// the logbook, commits stamped first; a capped lane (holds) trims
-			// its overflow. Either way the move says so — the one rule that
-			// moves files never runs silently — and a failure is reported
-			// without failing the move: the status write has already landed,
-			// and a non-zero exit would send an agent into a retry that
-			// short-circuits as already-in-lane. What left before a failure is
-			// still named.
-			var trimmed []ticket.Trimmed
-			var trimErr error
-			var holds int
-			var filed bool
-			if l, ok := env.Lanes.Get(to); ok {
-				holds = l.Holds
-				trimmed, filed, trimErr = lane.Settle(s, l, logbookFolder(), t.ID, func(tk *ticket.Ticket) error {
-					_, err := s.StampCommits(tk, env.DeriveCommits)
-					return err
-				})
+			if len(res.Refused) > 0 {
+				return &codedError{
+					code:       refusalCode(res.Refused),
+					reason:     "gate_refused",
+					message:    fmt.Sprintf("cannot move %s to %s:\n%s", ticket.Handle(t.ID), to, bullets(res.Refused)),
+					violations: res.Refused,
+				}
 			}
+			t = res.Ticket
 
 			if g.jsonOut {
 				out := map[string]any{
 					"ticket": ticketJSON(t, env.Lanes), "moved": true,
-					"overridden": force && len(vs) > 0,
-					"trimmed":    trimmedJSON(trimmed),
+					"overridden": force && len(res.Overrode) > 0,
+					"trimmed":    trimmedJSON(res.Trimmed),
 				}
-				if filed {
+				if res.Filed {
 					out["filed_on_entry"] = true
 				}
-				if trimErr != nil {
-					out["trim_error"] = trimErr.Error()
+				if res.SettleErr != nil {
+					out["trim_error"] = res.SettleErr.Error()
 				}
 				return emit(cmd.OutOrStdout(), out)
 			}
-			if force && len(vs) > 0 {
+			if force && len(res.Overrode) > 0 {
 				// Refusals first, success last: a trailing bullet reads like a
 				// refusal, and 'move --force | tail -1' once cost a day that way
 				// (BDV0HM, 31.08.). The last line of a successful move is the move.
-				fmt.Fprintf(cmd.OutOrStdout(), "Overrode %d gate refusal(s):\n%s\n", len(vs), bullets(vs))
+				fmt.Fprintf(cmd.OutOrStdout(), "Overrode %d gate refusal(s):\n%s\n", len(res.Overrode), bullets(res.Overrode))
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "%s → %s\n", ticket.Handle(t.ID), to)
-			for _, tr := range trimmed {
-				if filed {
+			for _, tr := range res.Trimmed {
+				if res.Filed {
 					fmt.Fprintf(cmd.OutOrStdout(), "%s filed to the logbook — restore it with 'jaira restore %s'.\n",
 						ticket.Handle(tr.ID), filepath.Base(tr.Path))
 					continue
 				}
 				fmt.Fprintf(cmd.OutOrStdout(), "%s left for the logbook (%s holds %d) — restore it with 'jaira restore %s'.\n",
-					ticket.Handle(tr.ID), to, holds, filepath.Base(tr.Path))
+					ticket.Handle(tr.ID), to, res.Holds, filepath.Base(tr.Path))
 			}
-			if trimErr != nil {
-				fmt.Fprintf(cmd.ErrOrStderr(), "trimming the %s lane failed: %v\n", to, trimErr)
+			if res.SettleErr != nil {
+				fmt.Fprintf(cmd.ErrOrStderr(), "trimming the %s lane failed: %v\n", to, res.SettleErr)
 			}
 			fmt.Fprint(cmd.OutOrStdout(), nextStepLine(env.Lanes, t.ID, to))
 			return nil

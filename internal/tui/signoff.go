@@ -6,6 +6,7 @@ import (
 
 	"github.com/BeMuCa/jaira/core/gate"
 	"github.com/BeMuCa/jaira/core/identity"
+	"github.com/BeMuCa/jaira/core/move"
 	"github.com/BeMuCa/jaira/core/ticket"
 )
 
@@ -178,19 +179,20 @@ func (m *Model) accept() {
 		m.notify("Cannot accept yet:\n\n"+vs.Err().Error(), true)
 		return
 	}
-	if _, err := m.store.Mutate(id, func(t *ticket.Ticket) error {
-		if err := t.Doc().SetScalar(ticket.FieldStatus, next.ID); err != nil {
-			return err
-		}
-		return ticket.SetReady(t.Doc(), gate.Ready(t))
-	}); err != nil {
-		m.notify(err.Error(), true)
-		return
-	}
 	// The accept key is the fourth way a ticket lands in a lane, and the
 	// usual one for the capped terminal lane — it enforces the cap exactly
 	// as the other three move write-sites do.
-	trimMsg, trimErr := m.settleLane(next.ID, id)
+	res, err := move.Move(m.store, env, id, move.Request{
+		To: next.ID, Actor: identity.Current(m.store.Root),
+		ActorAliases: identity.Aliases(m.store.Root), Interactive: true,
+		Folder: m.settleFolder(), Prepare: m.settlePrepare(),
+	})
+	if err != nil {
+		m.notify(err.Error(), true)
+		return
+	}
+	trimMsg := settleMessage(res.Trimmed, res.Filed, res.Holds, next.ID)
+	trimErr := res.SettleErr
 	if err := m.reload(); err != nil {
 		m.notify(err.Error(), true)
 		return

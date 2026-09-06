@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/BeMuCa/jaira/core/lane"
 	"github.com/BeMuCa/jaira/core/ticket"
 )
 
@@ -43,20 +44,25 @@ func holdsStore(t *testing.T, n int) (*ticket.Store, []*ticket.Ticket) {
 	return s, out
 }
 
-// The builtin done is a doorway: settleLane files the just-landed ticket and
+// The builtin done is a doorway: lane.Settle files the just-landed ticket and
 // everything still sitting in the lane straight into the logbook — the lane
-// is self-migrating, and the message names every file with its restore path.
-// The holds (cap) branch of settleLane is pinned at the core and CLI layers.
+// is self-migrating, and settleMessage names every file with its restore path.
+// The holds (cap) branch is pinned at the core and CLI layers.
 func TestSettleLaneFilesTheDoorwayLane(t *testing.T) {
 	s, ts := holdsStore(t, 11)
 	m, err := New(s)
 	if err != nil {
 		t.Fatal(err)
 	}
-	msg, err := m.settleLane("done", "")
-	if err != nil {
-		t.Fatalf("settleLane: %v", err)
+	l, ok := m.lanes.Get("done")
+	if !ok {
+		t.Fatal(`"done" lane not found`)
 	}
+	trimmed, filed, err := lane.Settle(s, l, m.settleFolder(), "", m.settlePrepare())
+	if err != nil {
+		t.Fatalf("settle: %v", err)
+	}
+	msg := settleMessage(trimmed, filed, l.Holds, "done")
 	if got := strings.Count(msg, "filed to the logbook"); got != 11 {
 		t.Errorf("%d filing lines, want 11:\n%s", got, msg)
 	}
@@ -72,13 +78,15 @@ func TestSettleLaneFilesTheDoorwayLane(t *testing.T) {
 	}
 }
 
+// settleLane (now core/move.Move's own settle step) skipped a lane that
+// resolves to nothing; the same guard is m.lanes.Get returning false.
 func TestSettleLaneIgnoresAnUnknownLane(t *testing.T) {
 	s, _ := holdsStore(t, 1)
 	m, err := New(s)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if msg, err := m.settleLane("nosuch", ""); msg != "" || err != nil {
-		t.Errorf("settleLane on an unknown lane = %q, %v; want silence", msg, err)
+	if _, ok := m.lanes.Get("nosuch"); ok {
+		t.Fatal(`"nosuch" unexpectedly resolves to a lane`)
 	}
 }
