@@ -11,14 +11,19 @@ tags: []
 blocked-by: []
 commits: []
 created-at: 2026-09-03T10:21:34Z
-updated-at: 2026-09-09T07:53:16Z
+updated-at: 2026-09-09T08:00:16Z
 assignee: BeMuCa
 updated-by: BeMuCa
 claimed-by: EE-3NX6GL3-4099823
 claimed-at: 2026-09-08T23:46:46Z
-outcome-what: "Die Versionszeile ist aus beiden Fusszeilen nach links oben gewandert, auf eine eigene erste Zeile: im Board vor der Kopfzeile mit dem Ticket-Zaehler (internal/tui/view.go renderBoard, neues versionHead), im Launcher ueber dem Wordmark (internal/tui/home.go render). statusBar zeichnet sie nicht mehr. versionLine() gibt auf einem dev-Build 'jaira dev' zurueck statt \"\", weiter vor selfupdate.PollCache. Ihr Doc-Kommentar ist nachgezogen. Die Hoehenrechnung in renderBoard misst den Kopfblock statt eine Zeile anzunehmen."
-outcome-why: "Bei mehreren Binary-Staenden (self upgrade, go build, ~/.local/bin) war nicht sichtbar, welche Version laeuft: die Zeile stand unter einer umbrechenden Hinweisleiste, und auf einem dev-Build - also bei jedem Contributor - stand sie gar nicht da. Links oben ist sie eine Identitaetsangabe und keine Upgrade-Empfehlung mehr, deshalb darf ein dev-Build sich dort nennen."
-outcome-resolves: "Das Board zeigt links oben die Version, ein dev-Build zeigt 'dev', und die Platzierung ist als Geometrie getestet (erste Zeile, linksbuendig, Kopfzeile mit Ticket-Zaehler darunter) - nicht nur als 'irgendwo in der Ausgabe'."
+outcome-what: "Runde 2 nach Critique: versionHead() aufgeloest (renderBoard schreibt truncate(m.versionLine, m.width) direkt), die drei toten Leer-Wachen in view.go und home.go entfernt, h.render() im Home-Test einmal statt dreimal aufgerufen."
+outcome-why: "versionLine() liefert seit Runde 1 auch auf dev-Builds eine Zeile, damit waren die Wachen und der Wrapper Reste der entfernten Verhaltensweise."
+outcome-resolves: "Gleiche Ausgabe, drei Verzweigungen und eine Methode weniger; go test ./... -race gruen."
+review-summary: |-
+  internal/tui/view.go:771 versionHead() hat einen Aufrufer und tut nach dem Wegfall des dev-Leerfalls nur noch truncate; direkt in renderBoard einsetzen, der erklaerende Kommentar steht dort schon
+  internal/tui/view.go:183 und internal/tui/home.go:342 pruefen auf versionLine != "" - dieser Zustand kann nicht mehr eintreten, weil versionLine() jetzt auch auf einem dev-Build eine Zeile liefert (updatecheck.go:59, alle vier returns nicht leer). Das ist ein Rest der Verhaltensweise, die dieses Ticket gerade entfernt hat; Bedingung raus, Zeile immer schreiben
+  internal/tui/home.go:342 'if v := h.versionLine; v != ""' passt nicht zum Stil der Datei, die sonst 'if h.versionLine != ""' schreibt (alte Fusszeilenstelle) - mit dem Wegfall der Bedingung erledigt
+  internal/tui/updatecheck_test.go:99-105 ruft h.render() dreimal auf; einmal in eine Variable
 ---
 
 # Die jaira-Version steht links oben im Projektfenster
@@ -78,3 +83,12 @@ Die Hoehenrechnung in renderBoard zaehlt den Kopfblock (strings.Count(head,'\\n'
 Sackgasse, die ich verworfen habe: die Version links in die Kopfzeile selbst (dort, wo rechts '6 tickets' steht). Kostet keine Zeile und ist auch 'links oben' - aber die Zeile DARUNTER ist dann schon die Board-Leiste, und T8A8KM will die Pille darunter. Haette T8A8KM gezwungen, erst eine Zeile einzuschieben.
 
 Ausserhalb des Scope aufgefallen, NICHT angefasst: internal/cli/update.go nudgeIfStale haelt die CLI bewusst still ueber Releases - unberuehrt, die Aenderung betrifft nur das TUI.
+- **2026-09-09 07:54 · BeMuCa** — Beim Commit fast Fremdgut mitgenommen: 'git add -A .jaira/tickets' hat fuenf ungetrackte Tickets von Berk (81XRXX, VS5DFW, DBJTKQ, T8A8KM, ZP3R48) in meinen Commit gezogen. Rueckgaengig mit 'git reset --soft HEAD~1' und 'git restore --staged <datei>' - sie liegen wieder ungetrackt da, wie vorher. Merke fuer die naechste Session: beim Ticket-Commit die EINE Ticketdatei mit Pfad adden, nie '-A' auf .jaira/tickets.
+- **2026-09-09 07:55 · BeMuCa** — critique, Runde 1. Drei Findings, alle vom gleichen Ursprung: der dev-Zweig gibt jetzt IMMER eine Zeile zurueck, also sind die drei '!= ""'-Wachen aus der alten Welt tot. Damit schrumpft versionHead() auf ein truncate und gehoert in renderBoard hinein.
+
+Was ich geprueft und ausdruecklich STEHEN lasse, damit die naechste Runde es nicht wieder aufmacht:
+- Model und Home werden nur in New() (model.go:230) bzw. NewHome() gebaut, nirgends als Literal. Es gibt also keinen Nullwert-Pfad, der ein leeres versionLine in renderBoard traegt - deshalb ist das Entfernen der Wachen sicher und nicht bloss huebscher.
+- headLines = strings.Count(head,'\\n')+1 bleibt, obwohl head heute genau eine Zeile ist. Das ist keine Spekulation, sondern die vom Ticket verlangte Luecke fuer T8A8KMs Pille.
+- Die Zeile als eigene Zeile statt links in die Kopfzeile: begruendet, nicht wieder aufmachen (siehe Note vom in-progress-Schritt).
+- view.go zerlegt seinen Kopf ohnehin in Methoden (header, boardProjectLine, renderSessions). versionHead() haette also zum Muster gepasst - der Grund, sie trotzdem aufzuloesen, ist allein, dass nach Finding 2 nichts mehr drin steht.
+- **2026-09-09 08:00 · BeMuCa** — in-progress, Runde 2: die drei Critique-Findings sind umgesetzt. versionHead() ist weg, renderBoard schreibt die Zeile direkt, die drei toten '!= ""'-Wachen sind raus, der Test haelt h.render() in einer Variablen. Kein Verhaltensunterschied - dieselbe Ausgabe, drei Verzweigungen weniger.

@@ -96,12 +96,13 @@ func TestHomeHeadCarriesTheVersionIndicator(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.width, h.height = 100, 30
-	lines := strings.Split(h.render(), "\n")
+	out := h.render()
+	lines := strings.Split(out, "\n")
 	if !strings.Contains(lines[0], "up to date") {
 		t.Errorf("home first line = %q, want the version indicator", lines[0])
 	}
-	if strings.Count(h.render(), "up to date") != 1 {
-		t.Errorf("home = %q, want the version indicator exactly once", h.render())
+	if strings.Count(out, "up to date") != 1 {
+		t.Errorf("home = %q, want the version indicator exactly once", out)
 	}
 }
 

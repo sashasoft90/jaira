@@ -339,9 +339,7 @@ func (h *Home) render() string {
 	// The running version, top left, above everything else — the same corner
 	// the board puts it in, so the answer to "which binary is this" is in one
 	// place on every screen. It was in this screen's footer until P1AE82.
-	if v := h.versionLine; v != "" {
-		b.WriteString(truncate(v, h.width) + "\n")
-	}
+	b.WriteString(truncate(h.versionLine, h.width) + "\n")
 
 	// Header: the wordmark with the icon beside it, centred as a block. This is
 	// the one screen that is looked at rather than worked in, so it is allowed
