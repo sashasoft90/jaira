@@ -1,7 +1,7 @@
 ---
 id: 01M1KCKH0MCQ5P1BKTSHP1AE82
 title: Die jaira-Version steht links oben im Projektfenster
-status: critique
+status: optimize
 ready: true
 creator: BeMuCa
 goal: "Das TUI zeigt die laufende Binary-Version sichtbar im Board, links oben in der Ecke des Projektfensters"
@@ -11,7 +11,7 @@ tags: []
 blocked-by: []
 commits: []
 created-at: 2026-09-03T10:21:34Z
-updated-at: 2026-09-09T08:00:16Z
+updated-at: 2026-09-09T08:06:20Z
 assignee: BeMuCa
 updated-by: BeMuCa
 claimed-by: EE-3NX6GL3-4099823
@@ -24,6 +24,11 @@ review-summary: |-
   internal/tui/view.go:183 und internal/tui/home.go:342 pruefen auf versionLine != "" - dieser Zustand kann nicht mehr eintreten, weil versionLine() jetzt auch auf einem dev-Build eine Zeile liefert (updatecheck.go:59, alle vier returns nicht leer). Das ist ein Rest der Verhaltensweise, die dieses Ticket gerade entfernt hat; Bedingung raus, Zeile immer schreiben
   internal/tui/home.go:342 'if v := h.versionLine; v != ""' passt nicht zum Stil der Datei, die sonst 'if h.versionLine != ""' schreibt (alte Fusszeilenstelle) - mit dem Wegfall der Bedingung erledigt
   internal/tui/updatecheck_test.go:99-105 ruft h.render() dreimal auf; einmal in eine Variable
+  Runde 2: none - die drei Findings aus Runde 1 sind umgesetzt, ein Durchgang ueber den Diff findet nichts, was eine Datei und eine konkrete Alternative benennen koennte.
+review-gaps: |-
+  Entfernt: dieselbe Begruendung stand dreifach - der Satz 'eigene Zeile, damit eine zweite darunter passt' in internal/tui/updatecheck.go (Doc-Kommentar) UND internal/tui/view.go:177 (Aufrufstelle), und der Fusszeilen-Umzug zusaetzlich in internal/tui/home.go:339. Jetzt steht die Layout-Begruendung nur an der Aufrufstelle, die Funktions-Begruendung nur am Doc-Kommentar, und home.go zeigt auf renderBoard.
+  Nicht entfernt und warum: truncate(X.versionLine, X.width) steht in view.go:181 und home.go:341 zweimal - eine gemeinsame Hilfsfunktion braeuchte ein Interface oder eine freie Funktion mit zwei Parametern fuer je einen Aufrufer, das ist teurer als die Wiederholung. headLines = strings.Count(head,'\\n')+1 (view.go:206) sieht heute nach Overkill aus, weil head genau eine Zeile ist - es ist die vom Ticket verlangte Luecke fuer T8A8KM und benutzt dieselbe Redewendung wie sbLines zwei Zeilen darunter.
+  Nichts verwaist: kein Import, kein Helfer und kein Zweig ohne Aufrufer; styMeta, truncate und centre haben alle weitere Nutzer. Kein Verhaltensunterschied in diesem Durchgang - nur Kommentare.
 ---
 
 # Die jaira-Version steht links oben im Projektfenster
@@ -92,3 +97,8 @@ Was ich geprueft und ausdruecklich STEHEN lasse, damit die naechste Runde es nic
 - Die Zeile als eigene Zeile statt links in die Kopfzeile: begruendet, nicht wieder aufmachen (siehe Note vom in-progress-Schritt).
 - view.go zerlegt seinen Kopf ohnehin in Methoden (header, boardProjectLine, renderSessions). versionHead() haette also zum Muster gepasst - der Grund, sie trotzdem aufzuloesen, ist allein, dass nach Finding 2 nichts mehr drin steht.
 - **2026-09-09 08:00 · BeMuCa** — in-progress, Runde 2: die drei Critique-Findings sind umgesetzt. versionHead() ist weg, renderBoard schreibt die Zeile direkt, die drei toten '!= ""'-Wachen sind raus, der Test haelt h.render() in einer Variablen. Kein Verhaltensunterschied - dieselbe Ausgabe, drei Verzweigungen weniger.
+- **2026-09-09 08:01 · BeMuCa** — critique, Runde 2: keine Findings mehr, Lane fertig. Geprueft und bewusst nicht als Finding gefuehrt:
+- renderBoard schreibt die Zeile jetzt bedingungslos, also erscheint sie auch in modeMove/modeFilter/modeCreate, wo statusBar frueher frueh zurueckkehrte und die Version dort verschwand. Das ist konsistenter, nicht schlechter: eine Identitaetsangabe soll nicht davon abhaengen, ob gerade ein Prompt offen ist.
+- Andere Screens (renderDetail, renderHelp, renderPipeline...) zeigen die Version weiterhin nicht. Das war vorher genauso - statusBar haengt nur an renderBoard -, also keine Regression.
+- internal/tui/fitwindow_test.go:120 misst die Board-Hoehe hinter m.View(), und View() endet in clampBlock, das jede Zeile hart abschneidet. Der Test kann ein Ueberlaufen von bodyHeight also gar nicht sehen. Das ist bestehender Zustand, nicht von diesem Ticket gemacht - aber der Grund, warum ich headLines lieber messe als annehme. Fuer die testing-Lane: ein dev-Build auf einem kurzen Terminal ist der Fall, in dem der Kopf eine Zeile mehr kostet als vorher (unten fiel dort nichts weg, weil die Fusszeile auf dev schwieg).
+- **2026-09-09 08:06 · BeMuCa** — optimize: nur Kommentar-Deduplikation, kein Code. Der einzige echte Fund war dreifach erzaehlte Begruendung. Vor dem Aufraeumen gesucht: kein bestehendes Muster fuer eine Kopfzeile-links-oben im Repo, kein zweiter Ort, der release.Current ins TUI zeichnet (grep versionLine, release.Current) - internal/cli/update.go nudgeIfStale ist die CLI-Seite und bleibt bewusst stumm.

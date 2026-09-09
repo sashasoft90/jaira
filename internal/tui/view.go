@@ -174,12 +174,11 @@ func (m *Model) boardFit(width int) boardWindow {
 
 func (m *Model) renderBoard() string {
 	var b strings.Builder
-	// The running version is the first thing on the screen, in the top left
-	// corner: "which binary am I looking at" is asked before anything on the
-	// board is read, and it used to be buried in the footer under a hint bar
-	// that wraps. It gets its own line rather than the head line's left end
-	// (which the ticket count shares) so that a line can be hung underneath
-	// it without pushing the board bar down.
+	// The running version, top left, before anything on the board is read —
+	// see versionLine() in updatecheck.go for what it says. It gets a row of
+	// its own rather than the head line's left end (which the ticket count
+	// shares) so that a line can be hung underneath it without pushing the
+	// board bar down.
 	head := truncate(m.versionLine, m.width)
 	b.WriteString(head + "\n")
 	b.WriteString(m.header())

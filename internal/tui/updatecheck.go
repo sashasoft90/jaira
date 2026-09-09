@@ -14,10 +14,8 @@ import (
 // It used to sit in both screens' footers. It moved up because the question
 // it answers is "which binary am I looking at" — asked while switching
 // between 'jaira self upgrade', a 'go build' and ~/.local/bin — and a footer
-// under a wrapping hint bar is not where anyone looks for an identity. It
-// owns its own line rather than sharing the head line with the ticket count
-// so that a second line can be hung underneath it without displacing the
-// board bar.
+// under a wrapping hint bar is not where anyone looks for an identity. Why
+// it gets a row of its own up there is at the two call sites.
 //
 // It is meant to be computed once, at construction (see Home.versionLine and
 // Model.versionLine), rather than on every render: selfupdate.PollCache also
