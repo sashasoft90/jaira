@@ -79,8 +79,8 @@ type Home struct {
 	startDir string
 
 	// versionLine is the persistent "which version, is there an update"
-	// indicator, computed once at construction — see versionLine() in
-	// updatecheck.go for why not on every render.
+	// indicator drawn in the top left corner, computed once at construction —
+	// see versionLine() in updatecheck.go for why not on every render.
 	versionLine string
 
 	width, height int
@@ -336,6 +336,13 @@ func (h *Home) render() string {
 
 	var b strings.Builder
 
+	// The running version, top left, above everything else — the same corner
+	// the board puts it in, so the answer to "which binary is this" is in one
+	// place on every screen. It was in this screen's footer until P1AE82.
+	if v := h.versionLine; v != "" {
+		b.WriteString(truncate(v, h.width) + "\n")
+	}
+
 	// Header: the wordmark with the icon beside it, centred as a block. This is
 	// the one screen that is looked at rather than worked in, so it is allowed
 	// to spend rows on identity — but only when they fit.
@@ -390,9 +397,6 @@ func (h *Home) render() string {
 
 	for _, l := range wrapHints([]string{"enter open", "s stats", "a add a board", "x remove a board", "d default board", "r refresh", "q quit"}, max(1, h.width)) {
 		b.WriteString("\n" + centre.Render(styMeta.Render(l)))
-	}
-	if h.versionLine != "" {
-		b.WriteString("\n" + centre.Render(truncate(h.versionLine, h.width)))
 	}
 	// Nothing above measures its own height, unlike every other self-contained
 	// screen (dropboard, follow-up, lane focus) — the stats panel plus a long

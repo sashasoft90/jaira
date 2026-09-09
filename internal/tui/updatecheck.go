@@ -8,7 +8,16 @@ import (
 )
 
 // versionLine renders the persistent "which version am I, and is a newer one
-// published" indicator shown in the launcher's and the board's footer.
+// published" indicator drawn at the top left of the board's project head and
+// of the launcher, on a line of its own.
+//
+// It used to sit in both screens' footers. It moved up because the question
+// it answers is "which binary am I looking at" — asked while switching
+// between 'jaira self upgrade', a 'go build' and ~/.local/bin — and a footer
+// under a wrapping hint bar is not where anyone looks for an identity. It
+// owns its own line rather than sharing the head line with the ticket count
+// so that a second line can be hung underneath it without displacing the
+// board bar.
 //
 // It is meant to be computed once, at construction (see Home.versionLine and
 // Model.versionLine), rather than on every render: selfupdate.PollCache also
@@ -29,20 +38,25 @@ import (
 // alone rather than claiming "up to date": that would assert a fact nobody
 // has actually verified.
 //
-// A dev build gets no line at all, in either caller: "jaira dev" answers
-// nothing a reader didn't already know, and both Home.render and the board's
-// statusBar already skip an empty versionLine.
+// A dev build names itself and stops there — "jaira dev", never an upgrade
+// claim. This half-reverses DNAEPN, which had this function return nothing
+// at all on a dev build: in a footer "jaira dev" was noise, but in the top
+// left corner it is the whole point, because "which binary is this" is
+// exactly the question a contributor switching between builds is asking.
+// The other half of DNAEPN stands, below.
 func versionLine() string {
 	// A build that is not a published release has nothing to compare itself to.
 	// release.Current is "dev" in every source build — which is what every
 	// contributor runs — and comparing that string to a published version can
-	// only ever say "different", so the footer would advertise an upgrade to
+	// only ever say "different", so the line would advertise an upgrade to
 	// code *older* than the code being run, pointing at a command that then
-	// refuses with dev_build. Saying nothing follows the same rule as the
-	// !known case below: never assert a fact nobody has checked — and "jaira
-	// dev" was not even that, just noise every contributor sees on every run.
+	// refuses with dev_build. So a dev build reports its identity and nothing
+	// more, following the same rule as the !known case below: never assert a
+	// fact nobody has checked. It returns before PollCache deliberately —
+	// there is no answer worth having here, so a contributor's every run
+	// should not stamp the cache or spawn a detached release check.
 	if release.Current == "dev" {
-		return ""
+		return styMeta.Render("jaira dev")
 	}
 	latest, known := selfupdate.PollCache()
 	switch {

@@ -80,9 +80,10 @@ func TestVersionLineDisabledShowsVersionAlone(t *testing.T) {
 	}
 }
 
-// TestHomeFooterCarriesTheVersionIndicator asserts the launcher's footer
-// includes the same indicator versionLine() produces.
-func TestHomeFooterCarriesTheVersionIndicator(t *testing.T) {
+// TestHomeHeadCarriesTheVersionIndicator asserts the launcher's top left
+// corner — not its footer, where the line lived until P1AE82 — carries the
+// same indicator versionLine() produces.
+func TestHomeHeadCarriesTheVersionIndicator(t *testing.T) {
 	setReleaseCurrent(t, "1.0.0")
 	t.Setenv("JAIRA_HOME", t.TempDir())
 	t.Setenv("JAIRA_NO_UPDATE_CHECK", "")
@@ -95,19 +96,24 @@ func TestHomeFooterCarriesTheVersionIndicator(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.width, h.height = 100, 30
-	out := h.render()
-	if !strings.Contains(out, "up to date") {
-		t.Errorf("home footer = %q, want the version indicator", out)
+	lines := strings.Split(h.render(), "\n")
+	if !strings.Contains(lines[0], "up to date") {
+		t.Errorf("home first line = %q, want the version indicator", lines[0])
+	}
+	if strings.Count(h.render(), "up to date") != 1 {
+		t.Errorf("home = %q, want the version indicator exactly once", h.render())
 	}
 }
 
-// TestBoardStatusBarCarriesTheVersionIndicator asserts the board's status
-// bar includes the same indicator, on the plain (non-overlay) hints path.
+// TestBoardHeadCarriesTheVersionIndicator asserts the board's top left corner
+// carries the indicator and its status bar no longer does. Until P1AE82 the
+// line sat in the status bar; it says which binary is running, which is asked
+// before the board is read rather than after.
 //
 // The cache is written only after newTestStore has run, because that helper
 // sets its own isolated JAIRA_HOME — writing it first would target a
 // directory the test's actual Model never reads from.
-func TestBoardStatusBarCarriesTheVersionIndicator(t *testing.T) {
+func TestBoardHeadCarriesTheVersionIndicator(t *testing.T) {
 	setReleaseCurrent(t, "1.0.0")
 	s := newTestStore(t)
 	t.Setenv("JAIRA_NO_UPDATE_CHECK", "")
@@ -120,8 +126,42 @@ func TestBoardStatusBarCarriesTheVersionIndicator(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.width, m.height = 150, 32
-	out := m.statusBar()
-	if !strings.Contains(out, "1.3.0") || !strings.Contains(out, "jaira self upgrade") {
-		t.Errorf("status bar = %q, want the version indicator naming the available release", out)
+	first := strings.Split(m.renderBoard(), "\n")[0]
+	if !strings.Contains(first, "1.3.0") || !strings.Contains(first, "jaira self upgrade") {
+		t.Errorf("board first line = %q, want the version indicator naming the available release", first)
+	}
+	if sb := m.statusBar(); strings.Contains(sb, "1.3.0") || strings.Contains(sb, "jaira 1.0.0") {
+		t.Errorf("status bar = %q, want no version indicator", sb)
+	}
+}
+
+// TestBoardVersionSitsInTheTopLeftCorner is the placement the ticket asks for,
+// stated as geometry rather than as "somewhere in the output": the version is
+// the board's very first row, flush against the left edge, above the head line
+// that carries the ticket count.
+//
+// It also pins the room left for a second row underneath it: the follow-up
+// puts an "^ <version>" pill there, and that only stays possible while the
+// version owns a row of its own instead of sharing the head line.
+func TestBoardVersionSitsInTheTopLeftCorner(t *testing.T) {
+	setReleaseCurrent(t, "1.0.0")
+	s := newTestStore(t)
+	t.Setenv("JAIRA_NO_UPDATE_CHECK", "")
+	if err := selfupdate.Write(selfupdate.Check{CheckedAt: time.Now().UTC(), Latest: "1.0.0"}); err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := New(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.width, m.height = 150, 32
+	lines := strings.Split(m.renderBoard(), "\n")
+	if got := stripANSI(lines[0]); !strings.HasPrefix(got, "jaira 1.0.0") {
+		t.Errorf("board first line = %q, want it to start flush left with the version", got)
+	}
+	// The head line, with the ticket count, is below it rather than sharing it.
+	if got := stripANSI(lines[1]); !strings.Contains(got, "tickets") {
+		t.Errorf("board second line = %q, want the head line with the ticket count", got)
 	}
 }

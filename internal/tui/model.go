@@ -194,8 +194,9 @@ type Model struct {
 	laneStart int
 
 	// versionLine is the persistent "which version, is there an update"
-	// indicator, computed once at construction — see versionLine() in
-	// updatecheck.go for why not on every render. It survives switchBoard,
+	// indicator drawn in the board's top left corner, computed once at
+	// construction — see versionLine() in updatecheck.go for why not on
+	// every render. It survives switchBoard,
 	// since which jaira binary is running is a machine-level fact, not a
 	// per-board one.
 	versionLine string

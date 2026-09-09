@@ -174,6 +174,16 @@ func (m *Model) boardFit(width int) boardWindow {
 
 func (m *Model) renderBoard() string {
 	var b strings.Builder
+	// The running version is the first thing on the screen, in the top left
+	// corner: "which binary am I looking at" is asked before anything on the
+	// board is read, and it used to be buried in the footer under a hint bar
+	// that wraps. It gets its own line rather than the head line's left end
+	// (which the ticket count shares) so that a line can be hung underneath
+	// it without pushing the board bar down.
+	head := m.versionHead()
+	if head != "" {
+		b.WriteString(head + "\n")
+	}
 	b.WriteString(m.header())
 	b.WriteString("\n")
 	tabs := m.boardProjectLine()
@@ -195,11 +205,18 @@ func (m *Model) renderBoard() string {
 	if tabs != "" {
 		tabsLine = 1
 	}
+	// Measured rather than assumed to be one row, so a second line added to
+	// the identity block later costs the columns a row automatically instead
+	// of silently running off the bottom.
+	headLines := 0
+	if head != "" {
+		headLines = strings.Count(head, "\n") + 1
+	}
 	// The status bar is rendered first because it may wrap onto several lines
 	// on a narrow terminal, and the columns get whatever height remains.
 	sb := m.statusBar()
 	sbLines := strings.Count(sb, "\n") + 1
-	bodyHeight := m.height - 4 - sbLines - tabsLine - sessionPanelHeight(m.sessions)
+	bodyHeight := m.height - 4 - sbLines - tabsLine - headLines - sessionPanelHeight(m.sessions)
 	if bodyHeight < 3 {
 		bodyHeight = 3
 	}
@@ -747,6 +764,17 @@ func (m *Model) boardProjectLine() string {
 	return truncate(line, m.width)
 }
 
+// versionHead is the board's top-left identity block: which binary is running.
+// It is returned as a block rather than a bare line so renderBoard measures
+// its height instead of assuming a single row — see versionLine() in
+// updatecheck.go for what it says and why a dev build names itself.
+func (m *Model) versionHead() string {
+	if m.versionLine == "" {
+		return ""
+	}
+	return truncate(m.versionLine, m.width)
+}
+
 func (m *Model) header() string {
 	// The board's name is dropped when the project line below already carries it,
 	// marked and in first position: the same word twice on two consecutive lines
@@ -825,9 +853,6 @@ func (m *Model) statusBar() string {
 		} else {
 			lines[i] = styMeta.Render(l)
 		}
-	}
-	if m.versionLine != "" {
-		lines = append(lines, truncate(m.versionLine, m.width))
 	}
 	return strings.Join(lines, "\n")
 }
