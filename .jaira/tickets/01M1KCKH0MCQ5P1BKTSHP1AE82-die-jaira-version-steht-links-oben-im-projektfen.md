@@ -11,7 +11,7 @@ tags: []
 blocked-by: []
 commits: []
 created-at: 2026-09-03T10:21:34Z
-updated-at: 2026-09-09T08:14:14Z
+updated-at: 2026-09-09T08:19:39Z
 assignee: BeMuCa
 updated-by: BeMuCa
 claimed-by: EE-3NX6GL3-4099823
@@ -119,3 +119,4 @@ Wie das reproduzierbar ist, falls es nochmal gebraucht wird: der pty-Umweg ist n
   TestBoardHeadCarriesTheVersionIndicator: board first line = "001 ... 6 tickets", want the version indicator naming the available release
 Danach view.go aus der Kopie zurueckgeholt, dieselben Tests gruen. Der Test deckt die Platzierung also wirklich ab und nicht nur die Anwesenheit des Strings irgendwo.
 Wichtig fuer die naechste Session: die Mutation lief, waehrend im Hintergrund schon ein 'go test ./... -race -count=1' unterwegs war. Dessen Ergebnis war damit wertlos - go test kompiliert das Paket beim Erreichen des Pakets, nicht am Anfang. Lauf abgebrochen und nach dem Zurueckholen neu gestartet.
+- **2026-09-09 08:19 · BeMuCa** — Nachtrag zur Verifikation: bestehende gofmt-Drift in internal/cli/tickets.go. Nicht von mir - 'git show 823fc81:internal/cli/tickets.go | gofmt -l' meldet sie schon vor meinen Commits, und die Datei steht nicht in 'git diff --name-only 823fc81..HEAD'. Liegen gelassen, wie es die Regel fuer fremden toten/schiefen Code verlangt. Wer sie anfasst, sollte es in einem eigenen Commit tun, sonst rauscht ein reiner Formatlauf in einen Feature-Diff.
