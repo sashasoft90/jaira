@@ -1,7 +1,7 @@
 ---
 id: 01M1KCKH0MCQ5P1BKTSHP1AE82
 title: Die jaira-Version steht links oben im Projektfenster
-status: optimize
+status: human
 ready: true
 creator: BeMuCa
 goal: "Das TUI zeigt die laufende Binary-Version sichtbar im Board, links oben in der Ecke des Projektfensters"
@@ -11,7 +11,7 @@ tags: []
 blocked-by: []
 commits: []
 created-at: 2026-09-03T10:21:34Z
-updated-at: 2026-09-09T08:06:20Z
+updated-at: 2026-09-09T08:14:14Z
 assignee: BeMuCa
 updated-by: BeMuCa
 claimed-by: EE-3NX6GL3-4099823
@@ -29,6 +29,12 @@ review-gaps: |-
   Entfernt: dieselbe Begruendung stand dreifach - der Satz 'eigene Zeile, damit eine zweite darunter passt' in internal/tui/updatecheck.go (Doc-Kommentar) UND internal/tui/view.go:177 (Aufrufstelle), und der Fusszeilen-Umzug zusaetzlich in internal/tui/home.go:339. Jetzt steht die Layout-Begruendung nur an der Aufrufstelle, die Funktions-Begruendung nur am Doc-Kommentar, und home.go zeigt auf renderBoard.
   Nicht entfernt und warum: truncate(X.versionLine, X.width) steht in view.go:181 und home.go:341 zweimal - eine gemeinsame Hilfsfunktion braeuchte ein Interface oder eine freie Funktion mit zwei Parametern fuer je einen Aufrufer, das ist teurer als die Wiederholung. headLines = strings.Count(head,'\\n')+1 (view.go:206) sieht heute nach Overkill aus, weil head genau eine Zeile ist - es ist die vom Ticket verlangte Luecke fuer T8A8KM und benutzt dieselbe Redewendung wie sbLines zwei Zeilen darunter.
   Nichts verwaist: kein Import, kein Helfer und kein Zweig ohne Aufrufer; styMeta, truncate und centre haben alle weitere Nutzer. Kein Verhaltensunterschied in diesem Durchgang - nur Kommentare.
+test-verdict: "pass: go test ./... -race -count=1 gruen auf dem wiederhergestellten Baum, RC=0, alle 16 Pakete ok (internal/tui 269.467s, internal/cli 78.027s); go build -o /tmp/jaira-p1ae82 ./cmd/jaira ok, gofmt -l internal/tui leer. DoD 1 dreiteilig einzeln geprueft: Board zeigt links oben die Version (am laufenden Binary im pty: erste Zeile 'jaira dev', darunter die Kopfzeile mit '21 tickets', darunter die Board-Leiste), dev-Build zeigt 'dev' (jaira --version sagt 'version dev', dieselbe Aufnahme), und der Platzierungstest deckt sie wirklich ab - mutiert geprueft, 'head := \"\"' macht TestBoardVersionSitsInTheTopLeftCorner, TestBoardHeadNamesADevBuild und TestBoardHeadCarriesTheVersionIndicator rot. Fusszeile in beiden Screens ohne Version, 'jaira dev' kommt je Aufnahme genau einmal vor."
+question: |-
+  Zwei Dinge zum Ansehen, beide nur mit Augen entscheidbar.
+  1. Der Launcher (die Projektliste, 'jaira' ohne Argument) hatte die Versionszeile auch in seiner Fusszeile. Ich habe sie dort ebenfalls nach links oben gezogen, ueber das Wordmark - sonst haette der Launcher die Version ganz verloren, denn 'in der Fusszeile steht keine Version mehr' trifft auch ihn. Soll sie dort oben bleiben, oder soll der Launcher gar keine Version zeigen? Letzteres ist eine geloeschte Zeile in internal/tui/home.go:341, sonst nichts.
+  2. Die Zeile im Board sieht so aus: 'jaira dev' linksbuendig in Zeile 1, darunter die Kopfzeile mit '21 tickets' rechts, darunter die Board-Leiste. Sie kostet dem Board eine Zeile Hoehe. Auf einem Release steht dort die lange Form 'jaira 0.1.1 - 0.1.2 available - run: jaira self upgrade'; die wird kurz, sobald T8A8KM die zweite Haelfte in die Pille darunter zieht. Passt das so, oder soll die Zeile noch etwas anderes sagen?
+  Gepruefte Fakten dazu stehen in den Notes; go test ./... -race ist gruen.
 ---
 
 # Die jaira-Version steht links oben im Projektfenster
@@ -102,3 +108,14 @@ Was ich geprueft und ausdruecklich STEHEN lasse, damit die naechste Runde es nic
 - Andere Screens (renderDetail, renderHelp, renderPipeline...) zeigen die Version weiterhin nicht. Das war vorher genauso - statusBar haengt nur an renderBoard -, also keine Regression.
 - internal/tui/fitwindow_test.go:120 misst die Board-Hoehe hinter m.View(), und View() endet in clampBlock, das jede Zeile hart abschneidet. Der Test kann ein Ueberlaufen von bodyHeight also gar nicht sehen. Das ist bestehender Zustand, nicht von diesem Ticket gemacht - aber der Grund, warum ich headLines lieber messe als annehme. Fuer die testing-Lane: ein dev-Build auf einem kurzen Terminal ist der Fall, in dem der Kopf eine Zeile mehr kostet als vorher (unten fiel dort nichts weg, weil die Fusszeile auf dev schwieg).
 - **2026-09-09 08:06 · BeMuCa** — optimize: nur Kommentar-Deduplikation, kein Code. Der einzige echte Fund war dreifach erzaehlte Begruendung. Vor dem Aufraeumen gesucht: kein bestehendes Muster fuer eine Kopfzeile-links-oben im Repo, kein zweiter Ort, der release.Current ins TUI zeichnet (grep versionLine, release.Current) - internal/cli/update.go nudgeIfStale ist die CLI-Seite und bleibt bewusst stumm.
+- **2026-09-09 08:08 · BeMuCa** — testing, Pass 3 (Funktion) am laufenden Binary, nicht nur im Test:
+Board mit einem pty aufgenommen - '(sleep 4; printf q) | script -qec "stty rows 30 cols 140; /tmp/jaira-p1ae82 board" /dev/null' - und die Escape-Sequenzen weggeschnitten. Erste Zeile: 'jaira dev', danach die Kopfzeile mit '21 tickets' rechts, danach die Board-Leiste '1 jAIra | 2 requirementsgenie | 3 LHChecker | 4 localhtml', danach die Spalten. Letzte Zeile: 'enter open . v compact . ... . q quit' - keine Version. 'jaira dev' kommt in der ganzen Aufnahme genau einmal vor.
+Launcher genauso aufgenommen (bare '/tmp/jaira-p1ae82' aus einem leeren Verzeichnis): 'jaira dev' in der ersten Zeile ueber dem Wordmark, Fusszeile endet mit 'q quit', ebenfalls genau ein Vorkommen.
+/tmp/jaira-p1ae82 --version sagt 'jaira version dev' - es ist wirklich der dev-Fall, den DNAEPN stumm gestellt hatte.
+Wie das reproduzierbar ist, falls es nochmal gebraucht wird: der pty-Umweg ist noetig, weil bubbletea ohne Terminal nichts zeichnet; ohne 'stty rows/cols' im script-Kommando nimmt es 80x24.
+- **2026-09-09 08:09 · BeMuCa** — testing, Pass 2 (die Forderung): den Platzierungs-Test nicht nur laufen lassen, sondern mutiert. 'head := truncate(...)' plus WriteString in renderBoard durch 'head := ""' ersetzt und die vier Tests laufen lassen - alle rot, wortwoertlich:
+  TestBoardVersionSitsInTheTopLeftCorner: board first line = "001 ... 6 tickets", want it to start flush left with the version
+  TestBoardHeadNamesADevBuild: board first line = "001 ... 6 tickets", want it to name the dev build
+  TestBoardHeadCarriesTheVersionIndicator: board first line = "001 ... 6 tickets", want the version indicator naming the available release
+Danach view.go aus der Kopie zurueckgeholt, dieselben Tests gruen. Der Test deckt die Platzierung also wirklich ab und nicht nur die Anwesenheit des Strings irgendwo.
+Wichtig fuer die naechste Session: die Mutation lief, waehrend im Hintergrund schon ein 'go test ./... -race -count=1' unterwegs war. Dessen Ergebnis war damit wertlos - go test kompiliert das Paket beim Erreichen des Pakets, nicht am Anfang. Lauf abgebrochen und nach dem Zurueckholen neu gestartet.
