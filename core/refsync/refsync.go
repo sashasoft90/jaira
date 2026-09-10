@@ -23,6 +23,8 @@ import (
 	"time"
 
 	"github.com/BeMuCa/jaira/core/gitref"
+	"github.com/BeMuCa/jaira/core/lane"
+	"github.com/BeMuCa/jaira/core/merge"
 	"github.com/BeMuCa/jaira/core/outbox"
 	"github.com/BeMuCa/jaira/core/ticket"
 )
@@ -399,4 +401,88 @@ func (y *Syncer) saveSeen(s seen) {
 	if b, err := json.MarshalIndent(s, "", "  "); err == nil {
 		_ = os.WriteFile(y.SeenPath, append(b, '\n'), 0o644)
 	}
+}
+
+// Reconciled is one ticket as the board should show it: the local file and the
+// ref brought together, with the two state markers the user needs.
+type Reconciled struct {
+	ID string `json:"id"`
+
+	// Content is what to show. On a clean merge it is the two sides merged; a
+	// ticket that exists on only one side is that side unchanged.
+	Content []byte `json:"-"`
+
+	// Conflicts are the prose fields the merge could not settle. They are the
+	// existing conflict path, not a new one: the same fields 'jaira resolve'
+	// handles after a git merge.
+	Conflicts []merge.Conflict `json:"conflicts,omitempty"`
+
+	// RefOnly says the ticket reached this clone on its ref alone — it is in
+	// no branch here. This is the case the whole feature exists for.
+	RefOnly bool `json:"ref-only"`
+
+	// Unsent says this clone holds a write for the ticket that has not reached
+	// the remote yet.
+	Unsent bool `json:"unsent"`
+}
+
+// Reconcile brings the local ticket file and the ref together for one ticket.
+//
+// It is deliberately not "show whichever is newer". The two sides are merged
+// field by field by core/merge, which is the same resolver the git merge driver
+// uses: status by progress along the lane chain (never backwards), lists by
+// union, other scalars by updated-at, prose as a real conflict. A newer local
+// edit must not drag a ticket back out of review because someone touched it
+// after the reviewer did.
+//
+// The base for that merge is the ref's parent blob — the state both sides
+// started from — which is available precisely because a ref commit keeps its
+// leased SHA as parent.
+func (y *Syncer) Reconcile(id string, lanes *lane.Set) (*Reconciled, error) {
+	out := &Reconciled{ID: id}
+	if y == nil {
+		return out, nil
+	}
+	_, out.Unsent = y.Pending(id)
+
+	var local []byte
+	if y.Store != nil {
+		if t, err := y.Store.Load(id); err == nil {
+			if b, err := os.ReadFile(t.Path); err == nil {
+				local = b
+			}
+		}
+	}
+	if y.Usable() != nil {
+		out.Content = local
+		return out, nil
+	}
+	theirs, _, err := y.Repo.Read(id)
+	if err != nil {
+		// No ref: the local file is the whole story.
+		out.Content = local
+		return out, nil
+	}
+	if local == nil {
+		out.RefOnly = true
+		out.Content = theirs
+		return out, nil
+	}
+	base, err := y.Repo.ReadParent(id)
+	if err != nil {
+		// The ticket's first write has no earlier state; the two sides are all
+		// there is, and core/merge treats an empty base as "both added it".
+		base = local
+	}
+	res, err := merge.Merge(base, local, theirs, lanes)
+	if err != nil {
+		// A merge that cannot be performed must not blank the card: showing
+		// the local file is always defensible, since it is what this clone
+		// wrote.
+		out.Content = local
+		return out, nil
+	}
+	out.Content = res.Merged
+	out.Conflicts = res.Conflicts
+	return out, nil
 }

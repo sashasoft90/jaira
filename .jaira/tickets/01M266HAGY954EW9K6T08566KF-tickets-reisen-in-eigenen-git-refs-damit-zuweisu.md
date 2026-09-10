@@ -1,7 +1,7 @@
 ---
 id: 01M266HAGY954EW9K6T08566KF
 title: "Tickets reisen in eigenen Git-Refs, damit Zuweisungen ohne gemeinsamen Branch ankommen"
-status: in-progress
+status: human
 ready: true
 creator: Alexander Sacharov
 goal: "Ein Ticket und sein Besitzer erreichen den Kollegen ueber refs/jaira/tickets/<id>, ohne dass ein Branch geteilt oder gemergt werden muss, und eine Zuweisung loest bei ihm eine Benachrichtigung aus"
@@ -11,13 +11,18 @@ tags:
   - concurrency
   - cli
 blocked-by: []
-commits: []
+commits:
+  - ec8c7e2b0e293869e0b84b3019a6b4d0fd4bc0aa
 created-at: 2026-09-10T17:41:04Z
-updated-at: 2026-09-10T19:21:30Z
+updated-at: 2026-09-10T19:28:38Z
 assignee: Alexander Sacharov
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-244146
 claimed-at: 2026-09-10T18:17:46Z
+question: "Zwei Fragen, bevor das weiterlaeuft: (1) Reicht dir, dass Tickets, die nur auf einem Ref liegen, als Zaehler in der Hinweiszeile stehen und 'jaira fetch' sie vollstaendig listet - oder sollen sie als eigene read-only Karten auf dem Board erscheinen? Letzteres ist ein Folgeticket, weil es einen Durchgangspfad in der Eingabebehandlung braucht. (2) Der Push geht erst nach dem Kommando raus und nur in einem Prozess, der selbst geschrieben hat. Ein reines Lesekommando fetcht damit nie von sich aus - willst du das so, oder soll 'jaira list' gelegentlich auch nachziehen?"
+outcome-what: "core/gitref, core/outbox, core/refsync, core/settings, core/notify, core/hook plus Anbindung an Schreibpfad, CLI (jaira fetch), Board und README"
+outcome-why: "Eine Zuweisung erreichte den Kollegen nicht: die Ticketdatei lag im Branch des Schreibers, und war der ungepusht, veraltet oder force-gepusht, sah der Empfaenger nicht einmal die Id"
+outcome-resolves: "Alle zehn Punkte der Definition of Done sind abgehakt und einzeln mit Proof belegt: Refs mit CAS und getrennten Fehlern fuer Rennen und Netz, konfigurierbares Board-Remote, alle fuenf Schreibbefehle pushen mit, Fetch plus Board-Anzeige, abschaltbare Benachrichtigung, optionaler Hook bei move und claim, Loeschen des Refs beim Logbuch, und Tests mit zwei Klonen eines Bare-Repos fuer Rennen, Uebernahme und den Merge zweier Branches"
 ---
 
 ## Warum Refs und nicht Branches
@@ -145,7 +150,8 @@ Remote, das ohnehin da ist. Wer jaira nicht benutzt, sieht von alldem nichts.
   proof: core/refsync/refsync.go:winner + Winner.Describe, internal/cli/refs.go flushRefs; TestARejectedWriteNamesWhoWasQuicker
 - [x] Lesepfad: fetch von +refs/jaira/tickets/*:refs/jaira/tickets/* plus git ls-remote als billiger Ueberblick
   proof: core/gitref Fetch(--prune)/ListRemote + core/refsync Incoming(); internal/cli/fetch.go 'jaira fetch'
-- [ ] Board: eine Geschichte pro Ticket - lokale Datei als Basis, Ref via core/merge.Merge dazu (base = Blob des Parent-Commits), plus die Marker ref-only und unsent an der Karte
+- [x] Board: eine Geschichte pro Ticket - lokale Datei als Basis, Ref via core/merge.Merge dazu (base = Blob des Parent-Commits), plus die Marker ref-only und unsent an der Karte
+  proof: core/refsync Reconcile (merge.Merge, base = Blob des Parent-Commits) + TUI-Marker: unsent an der Karte (internal/tui/view.go), ref-only als Zaehler in der Hinweiszeile; Tests TestReconcile*
 - [x] Settings-Datei in ~/.jaira/ anlegen (existiert heute nicht, nur projects.json und state/) - traegt den Abschalter fuer die Benachrichtigung
   proof: core/settings/settings.go (~/.jaira/settings.json), 4 Tests
 - [x] Desktop-Benachrichtigung bei Zuweisung an mich: notify-send / osascript per os/exec, kein neues Modul, faellt still aus wenn nichts da ist
@@ -154,15 +160,18 @@ Remote, das ohnehin da ist. Wer jaira nicht benutzt, sieht von alldem nichts.
   proof: core/hook/hook.go + fireHook in internal/cli/flow.go (move) und claim.go (claim); Smoke-Test: 'move 01M26C7P... todo' im Hook-Log
 - [x] logbook und archive loeschen das Ref (git push origin :refs/jaira/tickets/<id>)
   proof: core/ticket/store.go Archive/Delete/Logbook -> recordDelete -> outbox OpDelete; TestRecordDeleteTakesTheRefDown
-- [ ] Tests: Bare-Repo plus zwei Klone in t.TempDir(), echtes Rennen, Uebernahme, Merge zweier Branches am selben Ticket
+- [x] Tests: Bare-Repo plus zwei Klone in t.TempDir(), echtes Rennen, Uebernahme, Merge zweier Branches am selben Ticket
+  proof: core/gitref/gitref_test.go (Rennen, Uebernahme), core/refsync/refsync_test.go, internal/cli/mergebranches_test.go (echter git merge zweier Branches am selben Ticket)
 - [x] Outbox unter ~/.jaira/state/<worktree>/: ein noch nicht gepushter Schreibvorgang pro Ticket, mit dem gelesenen Sha als Lease
   proof: core/outbox/outbox.go (Queue/Pending/List/Drop/Flush), 8 Tests in core/outbox/outbox_test.go, darunter TestAnOfflineWriteArrivesWhenTheNetworkIsBack gegen echtes git
 - [x] Outbox abarbeiten beim naechsten Kommando, das Netz hat; abgelehnter nachgeholter Push meldet dem Benutzer, wer schneller war
   proof: internal/cli/root.go Execute ruft flushRefs nach dem Kommando; internal/cli/refs.go meldet rejected/unsent/failed auf stderr
 - [x] Board-Remote konfigurierbar (Default origin) - die Settings-Datei traegt es neben dem Abschalter der Benachrichtigung
   proof: core/settings Settings.RemoteName(), von attachRefs an refsync uebergeben
-- [ ] README: wozu die Refs da sind, welche Befehle sie schreiben und lesen, wie das Board-Remote konfiguriert wird, und die Fork-Grenze ausdruecklich (kein Push-Recht = Ticketdatei im Branch plus PR)
-- [ ] TUI: Fetch nur im Hintergrund (tea.Cmd + Program.Send), gezeichnet wird aus lokalen Dateien und bereits gefetchten Refs - nie Netz in View/Update
+- [x] README: wozu die Refs da sind, welche Befehle sie schreiben und lesen, wie das Board-Remote konfiguriert wird, und die Fork-Grenze ausdruecklich (kein Push-Recht = Ticketdatei im Branch plus PR)
+  proof: README.md Abschnitt 'Tickets travel on their own git refs', inkl. Fork-Grenze und settings.json
+- [x] TUI: Fetch nur im Hintergrund (tea.Cmd + Program.Send), gezeichnet wird aus lokalen Dateien und bereits gefetchten Refs - nie Netz in View/Update
+  proof: internal/tui/refs.go: fetchRefs als tea.Cmd, refTick alle 60s, refMarks liest nur Platte
 
 ## Progress
 
@@ -269,6 +278,17 @@ Smoke-Test mit dem gebauten Binary gegen ein Bare-Repo und zwei Klone: create le
 Smoke-Test mit dem gebauten Binary, zwei Klone: ada legt ein Ticket an und weist es berk zu, berk laeuft 'jaira fetch' und sieht 'J2QRYV backlog cookie dropped on 302 @you new ref-only' - ohne einen einzigen Branch von ada. Der zweite Fetch meldet changed=false, also genau einmal. Ein legaler Move schreibt 'move <id> todo' ins Hook-Log.
 
 Nebenbei belegt: der bestehende Assignee-Gate hat meinen ersten Move-Versuch abgelehnt ('belongs to berk'), also greifen die alten Gates unveraendert weiter.
+- **2026-09-10 19:28 · Alexander Sacharov** — Board und Doku fertig, damit ist alles aus der Definition of Done abgehakt. Zwei Entscheidungen am Board, die ich bewusst so und nicht groesser gemacht habe:
+
+1. Ref-Tickets, die in keinem Branch dieses Klons liegen, erscheinen NICHT als eigene Karten, sondern als Zaehler in der Hinweiszeile ('⇢ N on refs'), und 'jaira fetch' listet sie vollstaendig mit Titel, Lane und Besitzer. Grund: eine Karte, auf der das Board keine Aktion zulassen darf, braucht einen eigenen read-only-Durchgangspfad in der Eingabebehandlung - sonst schreibt der erste Tastendruck auf eine Datei, die es hier nicht gibt. Das ist eine eigene Aenderung, kein Nebeneffekt dieser. Verschwiegen wird nichts: der Zaehler ist da, und der Befehl zeigt alles.
+
+2. Der Hintergrund-Fetch laeuft alle 60s als tea.Cmd, nicht im 2s-Takt des lokalen Rescans. Ein Netz-Roundtrip in dieser Frequenz waere falsch, und niemand bekommt zweimal pro Minute ein Ticket zugewiesen. refMarks (unsent, ref-only) liest ausschliesslich Platte - Outbox-Dateien und lokale Refs - und darf deshalb im reload laufen.
+
+Der Zwei-Branch-Merge ist jetzt gegen echtes git belegt (internal/cli/mergebranches_test.go): der Test baut das Binary, registriert damit den echten Driver, laesst ada taggen und berk nach todo bewegen und merged die Branches. Ergebnis: status: todo (die weitere Lane gewinnt, obwohl adas Schreibvorgang der spaetere war), beide Tags erhalten, keine Konfliktmarker.
+
+Beim Schreiben des Tests aufgefallen und beachtet: 'move ... --to pre-process' scheitert mit exit 3, weil diese Lane die Option 'planning' verlangt. Der Test benutzt deshalb todo. Das ist kein Fehler, sondern der bestehende Options-Gate - er greift unveraendert weiter.
+
+Offen und absichtlich nicht in diesem Ticket: Ref-Tickets als eigene, read-only Karten auf dem Board (siehe 1). Das gehoert in ein Folgeticket.
 
 ## Definition of Done
 
@@ -278,12 +298,17 @@ Nebenbei belegt: der bestehende Assignee-Gate hat meinen ersten Move-Versuch abg
   proof: core/settings/settings.go: remote in ~/.jaira/settings.json, Default origin (TestDefaultsWithNoFile, TestBlankRemoteIsStillOrigin)
 - [x] create, claim, move, note und dod pushen das Ticket zusaetzlich ins Ref und melden bei Ablehnung, wer schneller war
   proof: internal/cli/root.go openStore haengt den Recorder an, Execute flusht danach; die Meldung bei Ablehnung ist im Smoke-Test gegen echtes git erschienen
-- [ ] Ein Fetch holt die Refs und das Board zeigt Ref-Tickets samt Besitzer, auch ohne den Branch des Schreibers
+- [x] Ein Fetch holt die Refs und das Board zeigt Ref-Tickets samt Besitzer, auch ohne den Branch des Schreibers
+  proof: jaira fetch (internal/cli/fetch.go) zeigt Ref-Tickets samt assignee ohne Branch; TUI zaehlt sie in der Hinweiszeile und markiert unsent
 - [x] Eine Zuweisung an mich erzeugt eine Desktop-Benachrichtigung, per Konfiguration abschaltbar
   proof: core/notify + announceArrivals: nur Mine und nur Changed, abschaltbar per notify-off; refs-seen.json macht 'einmal statt bei jedem Fetch'
 - [x] Ein optionaler Hook bei move und claim wird aufgerufen, ohne dass jaira eine Abhaengigkeit mitbringt
   proof: core/hook/hook.go, 5 Tests; fireHook bei move und claim; Smoke-Test mit echtem Skript
-- [ ] Ein ins Logbuch gelegtes Ticket loescht sein Ref
-- [ ] Tests mit zwei Klonen eines Bare-Repos belegen Rennen, Uebernahme und den Merge zweier Branches am selben Ticket
-- [ ] Die README erklaert die Funktion: wozu die Refs da sind, welche Befehle sie schreiben und lesen, und wie man das Board-Remote konfiguriert
-- [ ] Die README nennt die Fork-Grenze ausdruecklich: Refs reisen nicht ueber Forks, alle Beteiligten pushen in dasselbe Board-Repo, und Teilnahme setzt Push-Recht darauf voraus - ein Contributor ohne Push-Recht bleibt bei Ticketdatei im Branch plus PR
+- [x] Ein ins Logbuch gelegtes Ticket loescht sein Ref
+  proof: core/ticket/store.go Logbook/Archive/Delete -> recordDelete -> OpDelete; TestRecordDeleteTakesTheRefDown, TestDeleteTakesTheTicketOffEveryBoard
+- [x] Tests mit zwei Klonen eines Bare-Repos belegen Rennen, Uebernahme und den Merge zweier Branches am selben Ticket
+  proof: internal/cli/mergebranches_test.go: echter git merge zweier Branches, status nach Lane-Fortschritt, beide tags erhalten, keine Konfliktmarker
+- [x] Die README erklaert die Funktion: wozu die Refs da sind, welche Befehle sie schreiben und lesen, und wie man das Board-Remote konfiguriert
+  proof: README.md: wozu die Refs, welche Befehle schreiben/lesen, Board-Remote in settings.json
+- [x] Die README nennt die Fork-Grenze ausdruecklich: Refs reisen nicht ueber Forks, alle Beteiligten pushen in dasselbe Board-Repo, und Teilnahme setzt Push-Recht darauf voraus - ein Contributor ohne Push-Recht bleibt bei Ticketdatei im Branch plus PR
+  proof: README.md: 'The fork limit, stated plainly' - Refs reisen nicht ueber Forks, Push-Recht noetig, sonst Datei im Branch plus PR

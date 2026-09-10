@@ -1,6 +1,7 @@
 package tag
 
 import (
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -367,10 +368,39 @@ func TestSaveWritesViaTempFileAndRename(t *testing.T) {
 	if err := os.WriteFile(Path(root), []byte("ui: 33\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	before, err := os.Stat(Path(root))
+	// Hold a handle on the file as it stands before Save. A rename swaps the
+	// directory entry and leaves this handle attached to the file that was
+	// there before, so a read through it afterwards still yields the old bytes,
+	// whereas an in-place truncate-and-write would push the new bytes through
+	// this very same handle. Surviving old bytes are the property the atomic
+	// write is bought for — a reader caught mid-write sees the previous file
+	// whole — so pinning them pins the thing that matters rather than a proxy
+	// for it.
+	//
+	// Not os.SameFile over a pair of os.Stat results, which is the obvious way
+	// to write this and is unfalsifiable on Windows: there os.Stat records only
+	// the path and defers the file identity, which SameFile then loads by
+	// reopening that path (os/types_windows.go:287). Both the before and the
+	// after FileInfo resolve to whatever the path names at comparison time —
+	// the same, already-renamed file — so the assertion passes whatever Save
+	// did. It went green on linux and macos and red on windows-latest for
+	// exactly that reason.
+	//
+	// And not a plain os.Open, which on Windows asks for FILE_SHARE_READ and
+	// FILE_SHARE_WRITE but not FILE_SHARE_DELETE (syscall.Open); a handle held
+	// that way forbids the replacement and would make Save itself fail rather
+	// than the assertion. os.Root opens with delete sharing, so the rename
+	// under test still goes through.
+	dir, err := os.OpenRoot(root + "/.jaira")
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer dir.Close()
+	before, err := dir.Open(FileName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer before.Close()
 
 	reg, err := Load(root)
 	if err != nil {
@@ -381,13 +411,12 @@ func TestSaveWritesViaTempFileAndRename(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// A rename replaces the inode; an in-place truncate-and-write would keep it.
-	after, err := os.Stat(Path(root))
+	old, err := io.ReadAll(before)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if os.SameFile(before, after) {
-		t.Error("Save wrote in place: the file was not replaced by a rename")
+	if string(old) != "ui: 33\n" {
+		t.Errorf("Save wrote in place: the handle opened before Save reads %q, want the pre-Save bytes", old)
 	}
 	// And no temporary file is left behind in .jaira.
 	ents, err := os.ReadDir(root + "/.jaira")

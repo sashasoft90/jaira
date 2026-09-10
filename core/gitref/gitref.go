@@ -202,6 +202,30 @@ func (r *Repo) Read(id string) ([]byte, string, error) {
 	return []byte(out), sha, nil
 }
 
+// ReadParent returns the ticket file as it was one commit earlier on the ref —
+// the state this clone had already seen when it last wrote or fetched.
+//
+// This is what makes reconciling the local file with the ref a real three-way
+// merge rather than a guess about which side is newer: because every ref commit
+// takes the leased SHA as its parent, the parent's blob is exactly "the state
+// both sides started from". A ref with no parent (the ticket's first write) has
+// no such state, and reports ErrNoRef so the caller can fall back to two-way.
+func (r *Repo) ReadParent(id string) ([]byte, error) {
+	sha, err := r.SHA(id)
+	if err != nil {
+		return nil, err
+	}
+	parent, _, err := r.run("", "rev-parse", "--verify", "--quiet", sha+"^")
+	if err != nil || strings.TrimSpace(parent) == "" {
+		return nil, ErrNoRef
+	}
+	out, _, runErr := r.run("", "show", strings.TrimSpace(parent)+":"+id+".md")
+	if runErr != nil {
+		return nil, ErrNoRef
+	}
+	return []byte(out), nil
+}
+
 // Write puts the ticket file on the ref and pushes it, refusing if the remote
 // moved since lease was read.
 //

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/BeMuCa/jaira/core/gitref"
+	"github.com/BeMuCa/jaira/core/lane"
 	"github.com/BeMuCa/jaira/core/outbox"
 	"github.com/BeMuCa/jaira/core/refsync"
 	"github.com/BeMuCa/jaira/core/ticket"
@@ -291,3 +292,149 @@ func run(t *testing.T, dir, name string, args ...string) string {
 var _ ticket.WriteRecorder = (*refsync.Syncer)(nil)
 
 var _ = gitref.Prefix
+
+// The reconciliation the board shows: one story per ticket, merged field by
+// field, not "whichever side is newer". This is the case that proves it — the
+// local file is newer, and it still must not drag the ticket back out of
+// review.
+func TestReconcileMergesFieldByFieldRatherThanTakingTheNewerSide(t *testing.T) {
+	ada, berk, _ := twoSides(t)
+	lanes, err := lane.Load(ada.store.Root)
+	if err != nil {
+		t.Fatalf("lanes: %v", err)
+	}
+
+	id := create(t, ada, "shared ticket")
+	if _, err := ada.syncer.Flush(); err != nil {
+		t.Fatalf("ada flush: %v", err)
+	}
+
+	// Berk moves it forward to review on the ref, and adds a tag.
+	if err := berk.syncer.Repo.Fetch(); err != nil {
+		t.Fatalf("berk fetch: %v", err)
+	}
+	content, lease, err := berk.syncer.Repo.Read(id)
+	if err != nil {
+		t.Fatalf("berk read: %v", err)
+	}
+	// Their write is deliberately older by the clock, and further along the
+	// lane chain. That is the whole point of the case.
+	theirs := strings.ReplaceAll(string(content), "status: backlog", "status: review")
+	theirs = withTag(t, theirs, "concurrency")
+	theirs = olderStamp(theirs)
+	if _, err := berk.syncer.Repo.Write(id, []byte(theirs), lease); err != nil {
+		t.Fatalf("berk write: %v", err)
+	}
+
+	// Ada, later in wall-clock time, only adds a tag of her own locally.
+	if _, err := ada.store.Mutate(id, func(tk *ticket.Ticket) error {
+		return tk.Doc().SetList(ticket.FieldTags, []string{"cli"})
+	}); err != nil {
+		t.Fatalf("ada mutate: %v", err)
+	}
+	if err := ada.syncer.Repo.Fetch(); err != nil {
+		t.Fatalf("ada fetch: %v", err)
+	}
+
+	got, err := ada.syncer.Reconcile(id, lanes)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	text := string(got.Content)
+	if !strings.Contains(text, "status: review") {
+		t.Errorf("a newer local write dragged the ticket back out of review:\n%s", text)
+	}
+	if !strings.Contains(text, "concurrency") || !strings.Contains(text, "cli") {
+		t.Errorf("tags were not unioned:\n%s", text)
+	}
+	if got.RefOnly {
+		t.Error("a ticket with a local file was reported as ref-only")
+	}
+}
+
+// A ticket that arrived on a ref alone is shown as such: it is in no branch
+// this clone has, which is the situation the feature exists for.
+func TestReconcileMarksATicketThatIsInNoBranchHere(t *testing.T) {
+	ada, berk, _ := twoSides(t)
+	lanes, err := lane.Load(berk.store.Root)
+	if err != nil {
+		t.Fatalf("lanes: %v", err)
+	}
+
+	id := create(t, ada, "assigned to berk")
+	if _, err := ada.syncer.Flush(); err != nil {
+		t.Fatalf("flush: %v", err)
+	}
+	if err := berk.syncer.Repo.Fetch(); err != nil {
+		t.Fatalf("fetch: %v", err)
+	}
+
+	got, err := berk.syncer.Reconcile(id, lanes)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if !got.RefOnly {
+		t.Error("a ticket present only on the ref was not marked ref-only")
+	}
+	if !strings.Contains(string(got.Content), "assigned to berk") {
+		t.Errorf("the ref-only ticket came back empty:\n%s", got.Content)
+	}
+	if got.Unsent {
+		t.Error("a ticket this clone never wrote was marked unsent")
+	}
+}
+
+// An unsent write is a card marker, not an error: the ticket is written here
+// and has not left the machine.
+func TestReconcileMarksAnUnsentWrite(t *testing.T) {
+	ada, _, _ := twoSides(t)
+	lanes, err := lane.Load(ada.store.Root)
+	if err != nil {
+		t.Fatalf("lanes: %v", err)
+	}
+	id := create(t, ada, "not sent yet")
+
+	got, err := ada.syncer.Reconcile(id, lanes)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if !got.Unsent {
+		t.Error("a queued write was not marked unsent")
+	}
+	if got.RefOnly {
+		t.Error("a local ticket was marked ref-only")
+	}
+}
+
+// olderStamp rewrites the updated-at line in place, so the fixture stays a
+// valid ticket rather than a file with a stray line after the body.
+func olderStamp(doc string) string {
+	out := make([]string, 0, 32)
+	for _, line := range strings.Split(doc, "\n") {
+		if strings.HasPrefix(line, "updated-at:") {
+			line = "updated-at: 2026-09-01T10:00:00Z"
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
+}
+
+// withTag puts one tag on a ticket file, whatever shape the tags field has, and
+// fails the test rather than silently changing nothing — a fixture that quietly
+// does not set up its own case proves nothing.
+func withTag(t *testing.T, doc, tag string) string {
+	t.Helper()
+	if strings.Contains(doc, "tags: []") {
+		return strings.Replace(doc, "tags: []", "tags:\n  - "+tag, 1)
+	}
+	if i := strings.Index(doc, "\ntags:\n"); i >= 0 {
+		return doc[:i+len("\ntags:\n")] + "  - " + tag + "\n" + doc[i+len("\ntags:\n"):]
+	}
+	// No tags field at all: add one inside the frontmatter, after the id.
+	marker := "\nstatus:"
+	i := strings.Index(doc, marker)
+	if i < 0 {
+		t.Fatalf("fixture has no status line to anchor tags to:\n%s", doc)
+	}
+	return doc[:i] + "\ntags:\n  - " + tag + doc[i:]
+}

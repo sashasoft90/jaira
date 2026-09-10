@@ -173,6 +173,18 @@ type Model struct {
 	// board's view of agent memory.
 	sessions []session.Session
 
+	// refSync carries tickets on their own git refs: it queues every write
+	// this board makes and, on its own slower timer, fetches what other
+	// clones wrote. Held here so the board can also show what it knows
+	// without asking the remote.
+	refSync *refsync.Syncer
+
+	// unsent holds the ids whose write has not reached the remote yet, and
+	// refOnly counts the tickets that exist on a ref but in no branch here.
+	// Both are refreshed from disk on every reload, never from the network.
+	unsent  map[string]bool
+	refOnly int
+
 	// watch carries filesystem events. A watcher is more responsive than the
 	// timer, but the timer stays as a backstop because change notifications are
 	// unreliable on some filesystems, notably Windows drives mounted into WSL2.
@@ -235,7 +247,8 @@ func New(s *ticket.Store) (*Model, error) {
 	// And they are queued for the ticket's own ref, the same as the CLI's.
 	// Queued, not sent: nothing in the update loop may wait for a network, so
 	// the board files the write and a command with a route sends it.
-	s.Recorder = refsync.New(s, "", m.me)
+	m.refSync = newSyncer(s, m.me)
+	s.Recorder = m.refSync
 	m.myAliases = identity.Aliases(s.Root)
 	if err := m.reload(); err != nil {
 		return nil, err
@@ -265,7 +278,8 @@ func (m *Model) switchBoard(root string) tea.Cmd {
 	m.me = identity.Current(s.Root)
 	// Mutations from the board record who made them, the same as the CLI's.
 	s.Actor = m.me
-	s.Recorder = refsync.New(s, "", m.me)
+	m.refSync = newSyncer(s, m.me)
+	s.Recorder = m.refSync
 	m.myAliases = identity.Aliases(s.Root)
 	m.scroll = map[string]int{}
 	m.laneIdx, m.cardIdx = 0, 0
@@ -321,6 +335,7 @@ func (m *Model) reload() error {
 	if sess, err := session.Load(m.store); err == nil {
 		m.sessions = sess
 	}
+	m.refMarks()
 	m.rebuild()
 	m.refreshLiveBoards()
 	return nil
@@ -596,7 +611,10 @@ func matches(t *ticket.Ticket, q string) bool {
 // Init satisfies tea.Model.
 func (m *Model) Init() tea.Cmd {
 	m.startWatching()
-	return tea.Batch(tick(), waitForChange(m.watch))
+	// The ref fetch runs once at startup and then on its own slower timer:
+	// being handed a ticket should show up without the user asking, but not at
+	// the cadence of the local rescan.
+	return tea.Batch(tick(), waitForChange(m.watch), fetchRefs(m.refSync), refTick())
 }
 
 // startWatching subscribes to changes in the ticket and session directories.
@@ -685,6 +703,21 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Preserve the cursor and any open pane across a background refresh.
 		_ = m.reload()
 		return m, tick()
+
+	case refTickMsg:
+		return m, tea.Batch(fetchRefs(m.refSync), refTick())
+
+	case refFetchedMsg:
+		if msg.err != nil {
+			// A remote that cannot be reached is the normal state the outbox
+			// exists for, and a board that said so every minute would be
+			// noise. Anything else is worth one line.
+			m.notify(msg.err.Error(), true)
+			return m, nil
+		}
+		m.announceArrivals(msg.arrivals)
+		_ = m.reload()
+		return m, nil
 
 	case changeMsg:
 		_ = m.reload()

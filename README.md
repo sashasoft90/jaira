@@ -272,6 +272,84 @@ outside.
 A teammate without your `critique` lane still sees those tickets, in a read-only
 passthrough column. Hiding them would be the worse failure.
 
+## Tickets travel on their own git refs
+
+Hand someone a ticket today and they learn nothing: the ticket file lives in
+the branch of whoever wrote it, and if that branch is unpushed, stale or
+force-pushed, the assignee sees neither the title nor the id. Scanning every
+branch for ticket files is expensive and still wrong.
+
+So every write also puts the ticket on a ref of its own:
+
+```
+refs/jaira/tickets/<id>      one ref per ticket, its tree carries <id>.md
+```
+
+That ref belongs to no branch. The default refspec does not fetch it, so a
+teammate who does not use jaira sees none of it, and it never shows up as a
+branch or in a hosting provider's web UI. The tree carries the whole ticket
+file rather than just an id, so the other side reads it with no checkout and
+nothing to merge:
+
+```bash
+jaira fetch                                     # one round trip, no branch
+git show refs/jaira/tickets/<id>:<id>.md        # or read it by hand
+```
+
+`jaira fetch` marks each card `@you`, `new`, and `ref-only` — the last being
+the property that matters: this ticket is in no branch you have. A ticket that
+has just become yours also raises a desktop notification, once, and the board
+fetches on its own every minute.
+
+**The push is a compare-and-swap.** Each ref commit takes the SHA you read as
+its parent, so a stale write is a non-fast-forward that git rejects by itself,
+and `--force-with-lease` covers the first write, where no commit has a parent
+to compare. A race is detected on the spot rather than three days later at a
+merge, and the message names who was quicker and where the ticket now is.
+
+**Writing works offline.** A write is queued, not pushed: sending happens
+after the command, and only in a process that actually wrote something, so
+`jaira list` never waits for a remote. If there is no route, the ticket is
+correct locally, the card says `unsent`, and it goes out with your next
+command. This is also why the board and the git merge driver can write tickets
+at all — neither may block on a network.
+
+**The ticket file stays in the code commit as well**, and the two answer
+different questions:
+
+| | File in the commit | Ref |
+|---|---|---|
+| Answers | what this change was, and why | where the ticket stands now, and with whom |
+| Read by | the reviewer of the diff | the board, notifications, another machine |
+| Changes | once, with the code | on every move, claim, note |
+| Lives | permanently, in the history | while the ticket is on the board |
+
+On the board it is one story per ticket, not two panes to compare: the local
+file and the ref are merged field by field by the same resolver the merge
+driver uses (see **Concurrency** below), with the ref's parent blob as the
+merge base. Progress is never reverted — a local edit made a minute ago cannot
+drag a ticket back out of review because a reviewer touched it first.
+
+`~/.jaira/settings.json` holds the three choices this needs, all optional:
+
+```json
+{ "remote": "origin", "notify-off": false, "hook": "/path/to/script" }
+```
+
+The hook is called on `move` and `claim` for delivery that does not wait for
+the other side to fetch. jaira only calls it and brings no dependency of its
+own: the script gets `JAIRA_EVENT`, `JAIRA_TICKET`, `JAIRA_TITLE`,
+`JAIRA_STATUS`, `JAIRA_ASSIGNEE`, `JAIRA_ACTOR` and `JAIRA_ROOT` in its
+environment, and what it does with them — a Slack webhook, ntfy.sh, Telegram —
+is yours.
+
+**The fork limit, stated plainly:** refs do not travel across forks. Everyone
+taking part pushes to the same board repository, which means participation
+requires push access to it. A contributor without push access keeps the ticket
+file in their branch and their pull request; they lose the ref channel, not the
+board. A board in a directory that is not a repository, or with no remote,
+simply does not use refs and behaves exactly as before.
+
 ## Concurrency
 
 Two people moving the same ticket both rewrite the same `status:` line. Line-based
@@ -383,6 +461,7 @@ jaira archive <id>         take a ticket that is not being worked off the board
 jaira delete <id>          remove a ticket's file for good (type the handle back)
 jaira move <id> --to ...   move lanes, applying the gates
 jaira next                 the next actionable ticket
+jaira fetch                fetch the tickets travelling on their own git refs
 jaira claim <id>           take a 30-minute lease on a ticket
 jaira lanes                installed lanes
 jaira checkpoint           record what this session is doing

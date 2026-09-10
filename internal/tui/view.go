@@ -550,6 +550,13 @@ func (m *Model) renderCard(t *ticket.Ticket, w int, selected bool) string {
 	if !m.isMe(t.UpdatedBy) && strings.TrimSpace(t.UpdatedBy) != "" {
 		flags = append(flags, styAsks.Render("✎ "+truncate(t.UpdatedBy, 10)))
 	}
+	// Written here, not yet on the remote. It is not an error and not a
+	// conflict: the ticket is correct on this machine and has not left it, and
+	// the next command with a route sends it. Saying so is what keeps the
+	// offline case from looking like a lost write.
+	if m.unsent[t.ID] {
+		flags = append(flags, styMeta.Render("⇅ unsent"))
+	}
 	if n, total := checklistProgress(t.PlanItems); total > 0 {
 		flags = append(flags, styMeta.Render(fmt.Sprintf("Plan %d/%d", n, total)))
 	}
@@ -825,6 +832,13 @@ func (m *Model) statusBar() string {
 	prefix := ""
 	if len(m.warnings) > 0 {
 		prefix += styWarn.Render(fmt.Sprintf("⚠ %d ", len(m.warnings)))
+	}
+	// Tickets that reached this clone on their own ref and are in no branch
+	// here. Hiding them would be the worse failure: somebody assigned you work
+	// and the board would be the last place to know. The count points at
+	// 'jaira fetch', which lists them in full.
+	if m.refOnly > 0 {
+		prefix += styAsks.Render(fmt.Sprintf("⇢ %d on refs ", m.refOnly))
 	}
 	// Wrapped, never dropped: a key the bar has no room for is a key the reader
 	// does not know exists. renderBoard measures this bar and gives the columns
