@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/BeMuCa/jaira/core/hook"
+	coreidentity "github.com/BeMuCa/jaira/core/identity"
 	"github.com/BeMuCa/jaira/core/outbox"
 	"github.com/BeMuCa/jaira/core/refsync"
+	"github.com/BeMuCa/jaira/core/settings"
 	"github.com/BeMuCa/jaira/core/ticket"
 )
 
@@ -20,8 +23,28 @@ var refs *refsync.Syncer
 // attachRefs makes every write through this store also queue the ticket for its
 // ref.
 func attachRefs(s *ticket.Store) {
-	refs = refsync.New(s, "", s.Actor)
+	set := settings.Load()
+	refs = refsync.New(s, set.RemoteName(), s.Actor)
+	// "Me" includes the aliases a person recorded, so core/identity answers it
+	// rather than this package holding a second opinion about who someone is.
+	refs.IsMine = func(assignee string) bool {
+		return assignee != "" && coreidentity.IsMe(s.Root, assignee)
+	}
 	s.Recorder = refs
+}
+
+// fireHook calls the user's script for a move or a claim, for delivery that
+// does not wait for the other side to fetch. It is best effort by design: see
+// core/hook.
+func fireHook(name string, s *ticket.Store, t *ticket.Ticket) {
+	script := settings.Load().Hook
+	if script == "" || t == nil {
+		return
+	}
+	hook.Run(script, hook.Event{
+		Name: name, ID: t.ID, Title: t.Title, Status: t.Status,
+		Assignee: t.Assignee, Actor: s.Actor, Root: s.Root,
+	})
 }
 
 // flushRefs sends what this command queued, and is called once after the

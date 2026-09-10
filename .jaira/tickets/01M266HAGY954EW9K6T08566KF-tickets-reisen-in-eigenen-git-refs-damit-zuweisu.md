@@ -13,7 +13,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-10T17:41:04Z
-updated-at: 2026-09-10T19:15:40Z
+updated-at: 2026-09-10T19:21:30Z
 assignee: Alexander Sacharov
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-244146
@@ -143,11 +143,15 @@ Remote, das ohnehin da ist. Wer jaira nicht benutzt, sieht von alldem nichts.
   proof: core/ticket/store.go: Mutate/Create rufen record(), Archive/Delete/Logbook rufen recordDelete(); internal/cli/root.go openStore + internal/tui/model.go haengen den Recorder an
 - [x] Bei Ablehnung: Ticket aus dem Ref neu einlesen und dem Aufrufer melden, wer schneller war (Assignee + updated-at aus dem fremden Ref)
   proof: core/refsync/refsync.go:winner + Winner.Describe, internal/cli/refs.go flushRefs; TestARejectedWriteNamesWhoWasQuicker
-- [ ] Lesepfad: fetch von +refs/jaira/tickets/*:refs/jaira/tickets/* plus git ls-remote als billiger Ueberblick
+- [x] Lesepfad: fetch von +refs/jaira/tickets/*:refs/jaira/tickets/* plus git ls-remote als billiger Ueberblick
+  proof: core/gitref Fetch(--prune)/ListRemote + core/refsync Incoming(); internal/cli/fetch.go 'jaira fetch'
 - [ ] Board: eine Geschichte pro Ticket - lokale Datei als Basis, Ref via core/merge.Merge dazu (base = Blob des Parent-Commits), plus die Marker ref-only und unsent an der Karte
-- [ ] Settings-Datei in ~/.jaira/ anlegen (existiert heute nicht, nur projects.json und state/) - traegt den Abschalter fuer die Benachrichtigung
-- [ ] Desktop-Benachrichtigung bei Zuweisung an mich: notify-send / osascript per os/exec, kein neues Modul, faellt still aus wenn nichts da ist
-- [ ] Optionaler Hook bei move/claim: jaira ruft ein Skript auf und bringt keine Abhaengigkeit mit
+- [x] Settings-Datei in ~/.jaira/ anlegen (existiert heute nicht, nur projects.json und state/) - traegt den Abschalter fuer die Benachrichtigung
+  proof: core/settings/settings.go (~/.jaira/settings.json), 4 Tests
+- [x] Desktop-Benachrichtigung bei Zuweisung an mich: notify-send / osascript per os/exec, kein neues Modul, faellt still aus wenn nichts da ist
+  proof: core/notify/notify.go (notify-send/osascript/PowerShell, WSL-Fallback), announceArrivals in internal/cli/fetch.go
+- [x] Optionaler Hook bei move/claim: jaira ruft ein Skript auf und bringt keine Abhaengigkeit mit
+  proof: core/hook/hook.go + fireHook in internal/cli/flow.go (move) und claim.go (claim); Smoke-Test: 'move 01M26C7P... todo' im Hook-Log
 - [x] logbook und archive loeschen das Ref (git push origin :refs/jaira/tickets/<id>)
   proof: core/ticket/store.go Archive/Delete/Logbook -> recordDelete -> outbox OpDelete; TestRecordDeleteTakesTheRefDown
 - [ ] Tests: Bare-Repo plus zwei Klone in t.TempDir(), echtes Rennen, Uebernahme, Merge zweier Branches am selben Ticket
@@ -155,7 +159,8 @@ Remote, das ohnehin da ist. Wer jaira nicht benutzt, sieht von alldem nichts.
   proof: core/outbox/outbox.go (Queue/Pending/List/Drop/Flush), 8 Tests in core/outbox/outbox_test.go, darunter TestAnOfflineWriteArrivesWhenTheNetworkIsBack gegen echtes git
 - [x] Outbox abarbeiten beim naechsten Kommando, das Netz hat; abgelehnter nachgeholter Push meldet dem Benutzer, wer schneller war
   proof: internal/cli/root.go Execute ruft flushRefs nach dem Kommando; internal/cli/refs.go meldet rejected/unsent/failed auf stderr
-- [ ] Board-Remote konfigurierbar (Default origin) - die Settings-Datei traegt es neben dem Abschalter der Benachrichtigung
+- [x] Board-Remote konfigurierbar (Default origin) - die Settings-Datei traegt es neben dem Abschalter der Benachrichtigung
+  proof: core/settings Settings.RemoteName(), von attachRefs an refsync uebergeben
 - [ ] README: wozu die Refs da sind, welche Befehle sie schreiben und lesen, wie das Board-Remote konfiguriert wird, und die Fork-Grenze ausdruecklich (kein Push-Recht = Ticketdatei im Branch plus PR)
 - [ ] TUI: Fetch nur im Hintergrund (tea.Cmd + Program.Send), gezeichnet wird aus lokalen Dateien und bereits gefetchten Refs - nie Netz in View/Update
 
@@ -249,17 +254,35 @@ Gefunden und behoben, war im Plan nicht vorgesehen: 'kein Repository' und 'Remot
 Nebenbei aufgefallen: meine ersten Offline-Tests haben Offline mit einem Remote-Pfad simuliert, der kein Repository ist - das ist gerade nicht offline. Sie zeigen jetzt auf 127.0.0.1:1, was sofort refused liefert, ohne echten Timeout im Test.
 
 Smoke-Test mit dem gebauten Binary gegen ein Bare-Repo und zwei Klone: create legt das Ref an, der zweite Klon liest das ganze Ticket per git show ohne einen einzigen Branch (git branch -a ist leer), und nach einem fremden Push meldet 'jaira note' auf stderr: 'was not sent: someone else wrote it first, it is now in review'.
+- **2026-09-10 19:21 · Alexander Sacharov** — Lesepfad, Einstellungen, Benachrichtigung und Hook stehen. Was dabei entschieden wurde:
+
+1. 'jaira fetch' ist der Lesepfad: ein Roundtrip auf refs/jaira/tickets/*, kein Branch, kein Checkout, kein Merge. Es markiert pro Karte '@you', 'new' und 'ref-only' - letzteres ist die Eigenschaft, die den Fall benennt, um den es geht: das Ticket liegt in keinem Branch, den du hast.
+
+2. Benachrichtigt wird nur bei Mine UND Changed. Ein Ticket, das seit letzter Woche auf mich zeigt, ist keine Nachricht, und bei jedem Fetch zu poppen erzieht den Benutzer dazu, die Benachrichtigung zu ignorieren. 'Changed' braucht Gedaechtnis: refs-seen.json unter dem State-Verzeichnis haelt pro Ticket das zuletzt gemeldete Ref-Sha. Ein Schreibfehler dort ist absichtlich still - der Preis ist eine doppelte Benachrichtigung, nicht ein gescheiterter Fetch.
+
+3. core/notify shellt aus: notify-send, osascript, PowerShell-Balloon. Keine Bibliothek, weil das cgo oder eine Windows-API-Bindung bedeuten wuerde und dieses Werkzeug ein statisches Binary ohne Laufzeitabhaengigkeit ist. Jeder Fehlschlag ist still: im Container, ueber ssh und auf CI gibt es keinen Notifier, und ein Board, das das jedes Mal meldet, ist schlimmer als eines, das leise nichts tut. Auf dieser Maschine (WSL) fehlt notify-send, powershell.exe ist erreichbar - deshalb der WSL-Zweig.
+
+4. Einstellungen: ~/.jaira/settings.json neben projects.json, mit remote, notify-off und hook. Wichtig ist die Formulierung 'notify-off' und nicht 'notify': der Nullwert - keine Datei, oder eine, die das Feld nicht nennt - laesst die Benachrichtigung an. Die Funktion wurde angefragt, und ein Default, der sie still zurueckhaelt, antwortet auf die Anfrage mit nichts. Eine kaputte Datei faellt auf die Defaults zurueck statt das Board zu verweigern.
+
+5. Der Hook ist der Ausweg fuer 'sag es jetzt': jaira ruft ein Skript, der Vertrag sind Umgebungsvariablen (JAIRA_EVENT, JAIRA_TICKET, JAIRA_TITLE, JAIRA_STATUS, JAIRA_ASSIGNEE, JAIRA_ACTOR, JAIRA_ROOT), keine Argumente - so liest ein Skript nur, was es braucht, und ein spaeter ergaenztes Feld bricht nichts. Timeout 5s, Ausgabe verworfen (ein geschwaetziger Hook darf sich nicht in das stdout mischen, das ein Agent als JSON liest), jeder Fehlschlag still.
+
+Smoke-Test mit dem gebauten Binary, zwei Klone: ada legt ein Ticket an und weist es berk zu, berk laeuft 'jaira fetch' und sieht 'J2QRYV backlog cookie dropped on 302 @you new ref-only' - ohne einen einzigen Branch von ada. Der zweite Fetch meldet changed=false, also genau einmal. Ein legaler Move schreibt 'move <id> todo' ins Hook-Log.
+
+Nebenbei belegt: der bestehende Assignee-Gate hat meinen ersten Move-Versuch abgelehnt ('belongs to berk'), also greifen die alten Gates unveraendert weiter.
 
 ## Definition of Done
 
 - [x] core/gitref liest, schreibt und loescht refs/jaira/tickets/<id> mit CAS und unterscheidet 'Rennen verloren' von 'Netz weg'
   proof: core/gitref/gitref.go (Write/Read/Delete/SHA, ErrRaceLost vs ErrOffline), 7 Tests in core/gitref/gitref_test.go gegen ein Bare-Repo mit zwei Klonen
-- [ ] Ein konfigurierbares Board-Remote entscheidet, wohin die Refs gehen; Default origin
+- [x] Ein konfigurierbares Board-Remote entscheidet, wohin die Refs gehen; Default origin
+  proof: core/settings/settings.go: remote in ~/.jaira/settings.json, Default origin (TestDefaultsWithNoFile, TestBlankRemoteIsStillOrigin)
 - [x] create, claim, move, note und dod pushen das Ticket zusaetzlich ins Ref und melden bei Ablehnung, wer schneller war
   proof: internal/cli/root.go openStore haengt den Recorder an, Execute flusht danach; die Meldung bei Ablehnung ist im Smoke-Test gegen echtes git erschienen
 - [ ] Ein Fetch holt die Refs und das Board zeigt Ref-Tickets samt Besitzer, auch ohne den Branch des Schreibers
-- [ ] Eine Zuweisung an mich erzeugt eine Desktop-Benachrichtigung, per Konfiguration abschaltbar
-- [ ] Ein optionaler Hook bei move und claim wird aufgerufen, ohne dass jaira eine Abhaengigkeit mitbringt
+- [x] Eine Zuweisung an mich erzeugt eine Desktop-Benachrichtigung, per Konfiguration abschaltbar
+  proof: core/notify + announceArrivals: nur Mine und nur Changed, abschaltbar per notify-off; refs-seen.json macht 'einmal statt bei jedem Fetch'
+- [x] Ein optionaler Hook bei move und claim wird aufgerufen, ohne dass jaira eine Abhaengigkeit mitbringt
+  proof: core/hook/hook.go, 5 Tests; fireHook bei move und claim; Smoke-Test mit echtem Skript
 - [ ] Ein ins Logbuch gelegtes Ticket loescht sein Ref
 - [ ] Tests mit zwei Klonen eines Bare-Repos belegen Rennen, Uebernahme und den Merge zweier Branches am selben Ticket
 - [ ] Die README erklaert die Funktion: wozu die Refs da sind, welche Befehle sie schreiben und lesen, und wie man das Board-Remote konfiguriert

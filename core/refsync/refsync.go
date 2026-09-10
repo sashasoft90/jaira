@@ -13,8 +13,11 @@
 package refsync
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -32,6 +35,20 @@ type Syncer struct {
 	// Actor is who the queued write is from, so a flush can say whose write it
 	// is sending and a rejection can name both sides.
 	Actor string
+
+	// Store is the working tree's tickets, used only to tell a ticket that
+	// arrived on a ref alone from one this clone already has a file for.
+	Store *ticket.Store
+
+	// IsMine decides whether an assignee is this user. It is a function rather
+	// than a name because "me" includes the aliases a person has recorded, and
+	// core/identity already knows how to answer it — this package should not
+	// hold a second opinion.
+	IsMine func(assignee string) bool
+
+	// SeenPath records which ref SHA was last reported for each ticket, so
+	// being handed a ticket is announced once instead of on every fetch.
+	SeenPath string
 
 	// usable caches whether this checkout can carry refs at all. It is asked
 	// once per process rather than per write: the answer is a property of the
@@ -68,7 +85,13 @@ func (y *Syncer) Usable() error {
 // need to branch.
 func New(s *ticket.Store, remote, actor string) *Syncer {
 	repo := &gitref.Repo{Dir: s.Root, Remote: remote, AuthorName: actor}
-	return &Syncer{Repo: repo, Box: outbox.At(s), Actor: actor}
+	return &Syncer{
+		Repo:     repo,
+		Box:      outbox.At(s),
+		Actor:    actor,
+		Store:    s,
+		SeenPath: filepath.Join(s.StateDir(), "refs-seen.json"),
+	}
 }
 
 // Record queues the ticket's current bytes for its ref. It satisfies
@@ -252,4 +275,128 @@ func (y *Syncer) winner(id string) (*Winner, error) {
 		}
 	}
 	return w, nil
+}
+
+// Arrival is a ticket as the ref now has it, seen from this clone.
+type Arrival struct {
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Status   string `json:"status"`
+	Assignee string `json:"assignee"`
+	SHA      string `json:"sha"`
+
+	// Mine says the ticket is assigned to this user. It is the whole reason
+	// this exists: being handed a ticket is the event nobody currently learns
+	// about.
+	Mine bool `json:"mine"`
+
+	// Changed says the ref moved since this clone last looked. A ticket that
+	// has been sitting there assigned to me for a week is not news, and
+	// announcing it on every fetch would train the user to ignore the thing.
+	Changed bool `json:"changed"`
+
+	// Local says a ticket file for this id exists in the working tree. False
+	// means the ticket reached this clone only on its ref — the case a
+	// teammate's unmerged branch cannot deliver.
+	Local bool `json:"local"`
+}
+
+// seen is the per-clone record of which ref SHA was last reported, so an
+// arrival is announced once rather than on every fetch.
+type seen map[string]string
+
+// Incoming fetches the ticket refs and reports what they now say.
+//
+// It is the read half of the feature: a fetch of refs/jaira/tickets/* costs one
+// round trip and needs no branch, no checkout and no merge, so a clone can be
+// told "this is yours now" without anyone having pushed a branch.
+func (y *Syncer) Incoming() ([]Arrival, error) {
+	if y == nil || y.Usable() != nil {
+		return nil, nil
+	}
+	if err := y.Repo.Fetch(); err != nil {
+		if errors.Is(err, gitref.ErrOffline) || errors.Is(err, gitref.ErrNoGit) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	ids, err := y.Repo.List()
+	if err != nil {
+		return nil, err
+	}
+	known := y.loadSeen()
+	next := make(seen, len(ids))
+	var out []Arrival
+	for _, id := range ids {
+		content, sha, err := y.Repo.Read(id)
+		if err != nil {
+			// A ref whose tree is not a ticket is not worth failing a fetch
+			// over; it is also not something this tool wrote.
+			continue
+		}
+		next[id] = sha
+		a := Arrival{ID: id, SHA: sha, Changed: known[id] != sha}
+		d, err := ticket.ParseDoc(content)
+		if err != nil {
+			continue
+		}
+		for _, f := range []struct {
+			key string
+			dst *string
+		}{
+			{ticket.FieldTitle, &a.Title},
+			{ticket.FieldStatus, &a.Status},
+			{ticket.FieldAssignee, &a.Assignee},
+		} {
+			if v, ok, err := d.Scalar(f.key); err == nil && ok {
+				*f.dst = v
+			}
+		}
+		if y.IsMine != nil {
+			a.Mine = y.IsMine(a.Assignee)
+		}
+		a.Local = y.hasLocal(id)
+		out = append(out, a)
+	}
+	y.saveSeen(next)
+	return out, nil
+}
+
+// hasLocal reports whether the working tree holds a file for this ticket.
+func (y *Syncer) hasLocal(id string) bool {
+	if y.Store == nil {
+		return false
+	}
+	_, err := y.Store.Load(id)
+	return err == nil
+}
+
+func (y *Syncer) loadSeen() seen {
+	s := seen{}
+	if y.SeenPath == "" {
+		return s
+	}
+	b, err := os.ReadFile(y.SeenPath)
+	if err != nil {
+		return s
+	}
+	if err := json.Unmarshal(b, &s); err != nil {
+		return seen{}
+	}
+	return s
+}
+
+// saveSeen records what was just reported. A failure here is silent on purpose:
+// the worst it costs is one repeated notification, and refusing a fetch over it
+// would cost the feature.
+func (y *Syncer) saveSeen(s seen) {
+	if y.SeenPath == "" {
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(y.SeenPath), 0o755); err != nil {
+		return
+	}
+	if b, err := json.MarshalIndent(s, "", "  "); err == nil {
+		_ = os.WriteFile(y.SeenPath, append(b, '\n'), 0o644)
+	}
 }
