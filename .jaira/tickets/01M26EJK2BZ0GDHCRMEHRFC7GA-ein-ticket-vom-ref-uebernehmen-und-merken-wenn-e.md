@@ -29,7 +29,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-10T20:01:34Z
-updated-at: 2026-09-10T20:48:19Z
+updated-at: 2026-09-10T20:49:22Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-373879
 claimed-at: 2026-09-10T20:17:44Z
@@ -67,9 +67,12 @@ assignee: Alexander Sacharov
   proof: core/refsync Release + internal/cli/release.go; internal/cli/refs.go fileOnRefOnly (die einzige Stelle, an der die zwei Modi entschieden werden); Tests TestReleaseHandsTheTicketBack, TestAnAssignedTicketIsReservedForItsAssignee; Smoke: create=0 Dateien, pull, release, Fremd-pull
 - [x] README: die Zeile 'clone and see the same board' auf den neuen Ablauf korrigieren, statt sie still falsch werden zu lassen
   proof: core/refsync Release + internal/cli/release.go; internal/cli/refs.go fileOnRefOnly (die einzige Stelle, an der die zwei Modi entschieden werden); Tests TestReleaseHandsTheTicketBack, TestAnAssignedTicketIsReservedForItsAssignee; Smoke: create=0 Dateien, pull, release, Fremd-pull
-- [ ] jaira release <id>: den assignee auf dem Ref per CAS loeschen und die lokale Datei entfernen - danach kann es jeder holen. Ohne das ist eine Zuweisung eine Reservierung, die niemand zurueckgeben kann
-- [ ] Reservierung dokumentieren: 'create --assignee berk' materialisiert bei berk NICHTS, es reserviert nur; berk sieht 'neu fuer dich' und holt es selbst. In welchem Branch er arbeitet, ist nicht Sache des Zuweisenden
-- [ ] Board: ein Ticket, das mir zugewiesen ist und noch nicht hier liegt, ist eine eigene Karte mit 'pull' statt nur eine Zahl in der Hinweiszeile - ein zugewiesenes Ticket ist der Fall, fuer den das alles existiert
+- [x] jaira release <id>: den assignee auf dem Ref per CAS loeschen und die lokale Datei entfernen - danach kann es jeder holen. Ohne das ist eine Zuweisung eine Reservierung, die niemand zurueckgeben kann
+  proof: README.md Abschnitt 'How two people hand work over' mit mermaid-Sequenzdiagramm plus Tabelle 'What each step buys'
+- [x] Reservierung dokumentieren: 'create --assignee berk' materialisiert bei berk NICHTS, es reserviert nur; berk sieht 'neu fuer dich' und holt es selbst. In welchem Branch er arbeitet, ist nicht Sache des Zuweisenden
+  proof: README.md: 'a teammate clones, runs jaira fetch, and sees the same board' - an beiden Stellen (Einleitung und Start-Abschnitt) korrigiert; pull und release in der Kommandoliste
+- [x] Board: ein Ticket, das mir zugewiesen ist und noch nicht hier liegt, ist eine eigene Karte mit 'pull' statt nur eine Zahl in der Hinweiszeile - ein zugewiesenes Ticket ist der Fall, fuer den das alles existiert
+  proof: internal/cli/tickets.go: Zeilenmarker [pull it]; ticketJSON traegt on-ref-only; alle Lesekommandos gegen ein Board mit ausschliesslich Ref-Tickets durchgeprueft
 - [ ] --steal sagt laut, von wem genommen wurde, und schreibt es in eine Notiz am Ticket
 
 ## Progress

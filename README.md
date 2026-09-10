@@ -9,9 +9,9 @@ Hand a coding agent one task and it reliably becomes five. Within a session that
 is fine. Across sessions it is not: what each sub-task was *for* and where it got
 to both evaporate, and there is no artifact left to reconstruct them from.
 
-jaira makes that state durable and visible. Tickets are files in the repo, so the
-board travels with the code. A teammate clones, runs `jaira`, and sees the same
-board. No server, no accounts, no setup.
+jaira makes that state durable and visible. Tickets travel with the code: a
+teammate clones, runs `jaira fetch`, and sees the same board. No server, no
+accounts, no setup.
 
 ```
 repo/                              ~/.jaira/
@@ -99,8 +99,8 @@ notes are ready to be read by everyone who can clone the repository. `jaira shar
 --undo` makes it private again; nothing about the tickets changes either way, so
 it is not a migration.
 
-Teammates then clone and run any jaira command; the merge driver binds itself on
-first use.
+Teammates then clone, run `jaira fetch`, and have the board; the merge driver
+binds itself on first use.
 
 The team flow is pull-based. A captured ticket belongs to nobody; whoever pulls
 it out of the backlog becomes its assignee in the same move. Pull before you
@@ -350,6 +350,56 @@ file in their branch and their pull request; they lose the ref channel, not the
 board. A board in a directory that is not a repository, or with no remote,
 simply does not use refs and behaves exactly as before.
 
+## How two people hand work over
+
+A ticket nobody is working lives on its ref and nowhere else. Pulling it is
+what puts it on your disk, and that pull is a compare-and-swap, so exactly one
+person can be holding it:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor A as Ada
+    participant R as origin<br/>refs/jaira/tickets/*
+    actor B as Berk
+
+    A->>R: jaira create "fix the 302" --assignee berk
+    Note over A: no file on Ada's disk:<br/>the ticket is on its ref
+    B->>R: jaira fetch
+    R-->>B: "fix the 302  @you new ref-only"
+    Note over B: a desktop notification, once
+    B->>R: jaira pull  (assignee = berk, compare-and-swap)
+    R-->>B: accepted
+    Note over B: now, and only now, the file<br/>exists under .jaira/tickets — here
+    A->>R: jaira pull  (same ticket)
+    R-->>A: refused: "berk has it"
+    Note over A: nothing written on Ada's disk
+    B->>B: work, commit the ticket with the code
+    B->>R: jaira move --to review
+    B->>R: jaira release  (optional)
+    Note over B: assignee cleared, file removed:<br/>anybody can pull it again
+```
+
+Reading the board needs no pull: `jaira list`, `jaira next` and `jaira show`
+include tickets that are still on their refs and mark them `[pull it]`. Every
+write refuses them with exit 3 and says which command changes that — a ticket
+you have not pulled is one you are not holding, and half-writing it is the one
+thing this rules out.
+
+**What each step buys**
+
+| Step | Why it is that way |
+|---|---|
+| `create` writes only the ref | While nobody is working it, a file in somebody's checkout is a copy a merge can duplicate, and it hides who the ticket belongs to |
+| an assignment does not materialise anything | Assigning reserves the ticket; the assignee still pulls it themselves, and which branch they work in is not the assigner's business |
+| `pull` pushes first, writes the file second | The other order leaves the loser of a race holding a file that belongs to somebody else |
+| the ref's `assignee` gates the pull | The compare-and-swap only rules out two writes in the same instant; it cannot say "this is not yours", because a pull re-reads the ref right before writing |
+| `release` clears the ref, then removes the file | Without it an assignment is a reservation nobody can hand back |
+
+A board with no remote behaves exactly as it always did: the file is the board.
+That branch is decided in one place, so no command has to know which mode it is
+in.
+
 ## Concurrency
 
 Two people moving the same ticket both rewrite the same `status:` line. Line-based
@@ -462,6 +512,8 @@ jaira delete <id>          remove a ticket's file for good (type the handle back
 jaira move <id> --to ...   move lanes, applying the gates
 jaira next                 the next actionable ticket
 jaira fetch                fetch the tickets travelling on their own git refs
+jaira pull <id>            take a ticket over and put it on your disk
+jaira release <id>         hand a ticket back so somebody else can take it
 jaira claim <id>           take a 30-minute lease on a ticket
 jaira lanes                installed lanes
 jaira checkpoint           record what this session is doing
