@@ -1,7 +1,7 @@
 ---
 id: 01M26DTCJ9EZ631S0NFVNQCKF5
 title: "Ein add/add-Merge verliert die andere Seite, weil die leere Basis abgelehnt wird"
-status: in-progress
+status: human
 ready: true
 creator: Alexander Sacharov
 goal: "Zwei Branches, die dieselbe Ticketdatei anlegen, mergen feldweise wie zwei Branches, die sie aendern - ohne dass eine Seite still verschwindet"
@@ -17,13 +17,18 @@ definition-of-done: "core/merge.Merge behandelt eine leere oder nur aus Leerraum
 tags:
   - concurrency
 blocked-by: []
-commits: []
+commits:
+  - 68aae28834ff19a76ff59b0010771567258ae872
 created-at: 2026-09-10T19:48:21Z
-updated-at: 2026-09-10T19:51:22Z
+updated-at: 2026-09-10T19:51:39Z
 claimed-by: DESKTOP-RFTCH11-353175
 claimed-at: 2026-09-10T19:48:30Z
 updated-by: Alexander Sacharov
 assignee: Alexander Sacharov
+question: "Fix steht und ist gegen echtes git belegt. Bleibt die Frage aus 8566KF: soll ein per Ref empfangenes Ticket lokal als Datei landen (dann ist es eine normale Karte in list, show, claim, move) oder als read-only Karte ohne Datei angezeigt werden?"
+outcome-what: core/merge behandelt eine leere Basis als abwesenden Vorfahren statt sie abzulehnen
+outcome-why: "Beim add/add-Merge zweier Branches an derselben Ticketdatei verlor die andere Seite still ihre Lane - ohne Konfliktmarker, also aussehend wie ein sauberer Merge"
+outcome-resolves: "Alle vier DoD-Punkte belegt: leere und Leerraum-Basis akzeptiert, add/add laeuft ohne Marker durch mit weiterer Lane und vereinigten Listen, Prosa bleibt echter Konflikt, und ein Test gegen echtes git deckt genau den add/add-Fall ab"
 ---
 
 # Ein add/add-Merge verliert die andere Seite, weil die leere Basis abgelehnt wird
@@ -31,7 +36,7 @@ assignee: Alexander Sacharov
 ## Definition of Done
 
 - [x] core/merge.Merge behandelt eine leere oder nur aus Leerraum bestehende Basis als 'kein gemeinsamer Vorfahre' statt sie abzulehnen; ein add/add-Merge zweier Branches an derselben Ticketdatei laeuft ohne Konfliktmarker durch, behaelt die weitere Lane und vereinigt Listen beider Seiten; Prosafelder, die sich auf beiden Seiten unterscheiden, bleiben ein echter Konflikt und landen in conflict-theirs-<field>; ein Test gegen echtes git deckt genau den add/add-Fall ab
-  proof: core/merge/merge.go: leere oder nur aus Leerraum bestehende Basis wird zu emptyDoc ('---\n---\n') statt abgelehnt
+  proof: core/merge/merge.go (leere/Leerraum-Basis -> emptyDoc); core/merge/merge_test.go TestAnEmptyBaseIsAnAbsentAncestorNotABrokenFile (vier leere Formen, weitere Lane, Listen-Union, Prosa bleibt Konflikt auf 'goal'); internal/cli/mergebranches_test.go TestTwoBranchesThatBothCreateTheTicketStillMergeFieldAware (echter git merge des add/add-Falls, 0 Marker)
 
 ## Options
 
