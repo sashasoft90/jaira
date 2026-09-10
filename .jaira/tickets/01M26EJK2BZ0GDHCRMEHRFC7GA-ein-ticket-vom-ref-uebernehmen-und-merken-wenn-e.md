@@ -1,8 +1,8 @@
 ---
 id: 01M26EJK2BZ0GDHCRMEHRFC7GA
 title: "Ein Ticket vom Ref uebernehmen, und merken wenn es die Tafel verlassen hat"
-status: backlog
-ready: false
+status: in-progress
+ready: true
 creator: Alexander Sacharov
 goal: "Ein Ticket lebt bis zur Uebernahme nur auf seinem Ref, und erst 'jaira pull' legt es hier als Datei hin - damit existiert es zu jeder Zeit in genau einem Klon und ein Merge kann es nicht doppeln"
 context: |-
@@ -29,8 +29,11 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-10T20:01:34Z
-updated-at: 2026-09-10T20:14:42Z
+updated-at: 2026-09-10T20:23:33Z
 updated-by: Alexander Sacharov
+claimed-by: DESKTOP-RFTCH11-373879
+claimed-at: 2026-09-10T20:17:44Z
+assignee: Alexander Sacharov
 ---
 
 # Ein Ticket vom Ref uebernehmen, und merken wenn es die Tafel verlassen hat
@@ -42,13 +45,39 @@ updated-by: Alexander Sacharov
 ## Options
 
 - [ ] brainstorm
-- [ ] planning
+- [x] planning
 
 ## Plan
 
 <Steps, in order — filled in by the pre-process step, or by you.>
 
+- [x] core/refsync.Pull(id): fetch, Ref lesen, assignee auf mich setzen, synchron mit CAS pushen - und NUR bei akzeptiertem Push die lokale Datei schreiben
+  proof: core/refsync/refsync.go Pull + internal/cli/pull.go; Tests TestOnlyOneCloneCanPullATicket, TestPullingATicketYouAlreadyHaveIsANoOp; Smoke gegen zwei Klone
+- [x] Reihenfolge begruenden und festhalten: Push zuerst, Datei danach. Umgekehrt haette der Verlierer des Rennens eine Datei, die niemandem gehoert
+  proof: core/refsync/refsync.go Pull + internal/cli/pull.go; Tests TestOnlyOneCloneCanPullATicket, TestPullingATicketYouAlreadyHaveIsANoOp; Smoke gegen zwei Klone
+- [x] Pull ist die eine Operation, die synchron schreibt und nicht ueber die Outbox geht - ohne Netz gibt es kein Ref zu lesen, also auch nichts zu uebernehmen
+  proof: core/refsync/refsync.go Pull + internal/cli/pull.go; Tests TestOnlyOneCloneCanPullATicket, TestPullingATicketYouAlreadyHaveIsANoOp; Smoke gegen zwei Klone
+- [x] Idempotenz: liegt die Datei schon hier, ist pull ein erfolgreicher No-op (Projektregel fuer wiederholbare Kommandos)
+  proof: core/refsync/refsync.go Pull + internal/cli/pull.go; Tests TestOnlyOneCloneCanPullATicket, TestPullingATicketYouAlreadyHaveIsANoOp; Smoke gegen zwei Klone
+- [x] internal/cli/pull.go: jaira pull <id>, --json, Exit 3 wenn das Rennen verloren ist, mit Namen des Gewinners
+  proof: core/refsync/refsync.go Pull + internal/cli/pull.go; Tests TestOnlyOneCloneCanPullATicket, TestPullingATicketYouAlreadyHaveIsANoOp; Smoke gegen zwei Klone
+- [x] Tests mit zwei Klonen: berk pullt und hat die Datei, ada verliert und hat KEINE Datei, doppeltes pull ist No-op
+  proof: core/refsync/refsync.go Pull + internal/cli/pull.go; Tests TestOnlyOneCloneCanPullATicket, TestPullingATicketYouAlreadyHaveIsANoOp; Smoke gegen zwei Klone
+- [ ] README: eigener Abschnitt zum Ablauf mit einem mermaid-Sequenzdiagramm, das zeigt, wie zwei Leute ein Ticket austauschen (create nur aufs Ref, fetch liest, pull gewinnt per CAS, Verlierer bekommt die Meldung) - mermaid, weil GitHub es selbst zeichnet und es im Gegensatz zu einem png von Hand aenderbar bleibt
+- [ ] README: die Zeile 'clone and see the same board' auf den neuen Ablauf korrigieren, statt sie still falsch werden zu lassen
+
 ## Progress
 - **2026-09-10 20:14 · Alexander Sacharov** — Reihenfolge, in der das gebaut werden muss: erst pull (dieses Ticket), dann darf create aufhoeren, lokal zu schreiben. Umgekehrt gaebe es einen Zustand, in dem ein Ticket auf einem Ref liegt und niemand es holen kann.
 
 PTQ3XT (Snapshot-Branch) ist die Abfederung von Preis 2 und kann parallel laufen - es haengt nicht an diesem Ticket, aber dieses Ticket sollte nicht ohne es in Produktion gehen, sonst liegt der Backlog eine Zeit lang ohne Backup nur auf dem Remote.
+- **2026-09-10 20:23 · Alexander Sacharov** — pull steht. Zwei Dinge, die der Test gefunden hat und die im Entwurf falsch waren:
+
+1. CAS allein sichert das Uebernehmen NICHT. Pull liest das Ref unmittelbar vor dem Schreiben, also ist der Lease immer aktuell und der Push gelingt immer - im ersten Wurf hat ada berks Uebernahme einfach ueberschrieben, und der Test hat es sofort gezeigt. Der eigentliche Waechter ist der assignee AUF DEM REF: ein Ticket, das jemand schon geholt hat, wird mit ErrTaken abgelehnt, mit Namen. Das CAS bleibt trotzdem noetig - es deckt den Fall ab, den die Pruefung nicht sehen kann: zwei Klone, die im selben Moment ein noch unbesetztes Ticket lesen.
+
+2. Ein aufgenommenes Ticket gehoert niemandem. Meine Testfixture setzte assignee beim Anlegen, und damit war jeder pull sofort 'taken'. Das ist nicht nur ein Fixture-Fehler, es widerspricht der Regel, auf der der ganze Ablauf steht (README: 'a captured ticket belongs to nobody; whoever pulls it out of the backlog becomes its assignee'). assignee heisst 'das ist meins zu bearbeiten', nicht 'ich habe es geschrieben' - dafuer ist creator da.
+
+Reihenfolge im Code ist die halbe Mechanik: erst der Push, dann die Datei. Andersherum haelt der Verlierer eines Rennens eine Ticketdatei, die jemand anderem gehoert - genau die Dublette, die dieser Entwurf unmoeglich machen soll, statt sie aufzuloesen. Belegt: nach der Ablehnung hat ada 0 Dateien.
+
+pull ist die eine Operation, die synchron schreibt und nicht ueber die Outbox geht. Das ist keine Ausnahme von der Offline-Regel, sondern deren Folge: ohne Route zum Remote gibt es kein Ref zu lesen, also nichts zu uebernehmen.
+
+Handprobe mit dem Binary: berk pullt und hat die Datei; ada wird abgelehnt ('berk has it, it is in backlog', exit 3) und hat keine; ein zweiter pull bei berk ist ein No-op; --steal nimmt es trotzdem.

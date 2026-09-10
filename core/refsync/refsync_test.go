@@ -1,6 +1,8 @@
 package refsync_test
 
 import (
+	"errors"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -56,6 +58,10 @@ func twoSides(t *testing.T) (ada, berk side, remote string) {
 	return mk("ada"), mk("berk"), bare
 }
 
+// create files a ticket the way capture works: nobody owns it. A captured
+// ticket belongs to no one until somebody pulls it out of the backlog, which is
+// the rule pull is built on — assignee says "this is mine to work", not "I
+// wrote it".
 func create(t *testing.T, s side, title string) string {
 	t.Helper()
 	id := ticket.NewID(time.Now())
@@ -63,7 +69,6 @@ func create(t *testing.T, s side, title string) string {
 		ticket.FieldID:        id,
 		ticket.FieldTitle:     title,
 		ticket.FieldStatus:    "backlog",
-		ticket.FieldAssignee:  s.store.Actor,
 		ticket.FieldCreator:   s.store.Actor,
 		ticket.FieldUpdatedBy: s.store.Actor,
 	}, nil, "# "+title+"\n")
@@ -129,7 +134,7 @@ func TestARejectedWriteNamesWhoWasQuicker(t *testing.T) {
 		t.Fatalf("berk read: %v", err)
 	}
 	moved := strings.ReplaceAll(string(content), "status: backlog", "status: review")
-	moved = strings.ReplaceAll(moved, "assignee: ada", "assignee: berk")
+	moved = withAssignee(moved, "berk")
 	moved = strings.ReplaceAll(moved, "updated-by: ada", "updated-by: berk")
 	if _, err := berk.syncer.Repo.Write(id, []byte(moved), lease); err != nil {
 		t.Fatalf("berk write: %v", err)
@@ -437,4 +442,104 @@ func withTag(t *testing.T, doc, tag string) string {
 		t.Fatalf("fixture has no status line to anchor tags to:\n%s", doc)
 	}
 	return doc[:i] + "\ntags:\n  - " + tag + doc[i:]
+}
+
+// The mechanism the whole design rests on: two people try to take the same
+// ticket, exactly one gets it, and the loser is left with no file at all.
+func TestOnlyOneCloneCanPullATicket(t *testing.T) {
+	ada, berk, _ := twoSides(t)
+
+	// Ada files the ticket and it reaches the remote. Nobody has claimed it.
+	id := create(t, ada, "cookie dropped on 302")
+	if _, err := ada.syncer.Flush(); err != nil {
+		t.Fatalf("ada flush: %v", err)
+	}
+
+	// A third clone would be the honest fixture, but two suffice: berk pulls
+	// it, and ada — who still holds the pre-pull ref — pulls too.
+	if err := ada.syncer.Repo.Fetch(); err != nil {
+		t.Fatalf("ada fetch: %v", err)
+	}
+	got, err := berk.syncer.Pull(id, false)
+	if err != nil {
+		t.Fatalf("berk pull: %v", err)
+	}
+	if got.AlreadyHere || got.Winner != nil {
+		t.Fatalf("berk's pull did not take the ticket: %+v", got)
+	}
+	if _, err := os.Stat(got.Path); err != nil {
+		t.Fatalf("berk has no file: %v", err)
+	}
+	tk, err := berk.store.Load(id)
+	if err != nil {
+		t.Fatalf("berk cannot load it: %v", err)
+	}
+	if tk.Assignee != "berk" {
+		t.Errorf("the pull did not make it berk's: assignee %q", tk.Assignee)
+	}
+
+	// Ada already has the file because she created it; the case worth testing
+	// is a clone that does not. Remove hers first, then pull with the stale
+	// ref she still holds.
+	adaTicket, err := ada.store.Load(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(adaTicket.Path); err != nil {
+		t.Fatal(err)
+	}
+	lost, err := ada.syncer.Pull(id, false)
+	if !errors.Is(err, refsync.ErrTaken) {
+		t.Fatalf("ada's pull should have been refused as taken, got %v", err)
+	}
+	if lost.Winner == nil || (lost.Winner.Assignee != "berk" && lost.Winner.UpdatedBy != "berk") {
+		t.Errorf("the loser was not told who has it: %+v", lost.Winner)
+	}
+	// And the loser holds nothing: this is the duplicate the design exists to
+	// make impossible.
+	if _, err := ada.store.Load(id); err == nil {
+		t.Error("the loser of the race ended up with a ticket file anyway")
+	}
+}
+
+// A repeated pull is a successful no-op, like moving a ticket to the lane it is
+// already in: commands here are safe to retry.
+func TestPullingATicketYouAlreadyHaveIsANoOp(t *testing.T) {
+	ada, berk, _ := twoSides(t)
+	id := create(t, ada, "already here")
+	if _, err := ada.syncer.Flush(); err != nil {
+		t.Fatalf("flush: %v", err)
+	}
+	first, err := berk.syncer.Pull(id, false)
+	if err != nil {
+		t.Fatalf("first pull: %v", err)
+	}
+	second, err := berk.syncer.Pull(id, false)
+	if err != nil {
+		t.Fatalf("second pull: %v", err)
+	}
+	if !second.AlreadyHere {
+		t.Error("a repeated pull was not reported as a no-op")
+	}
+	if second.Path != first.Path {
+		t.Errorf("the second pull moved the file: %q then %q", first.Path, second.Path)
+	}
+}
+
+// withAssignee sets the assignee on a ticket file whether or not it has one
+// yet, because a captured ticket has none.
+func withAssignee(doc, who string) string {
+	out := make([]string, 0, 32)
+	done := false
+	for _, line := range strings.Split(doc, "\n") {
+		if strings.HasPrefix(line, "assignee:") {
+			line, done = "assignee: "+who, true
+		}
+		if !done && strings.HasPrefix(line, "status:") {
+			out = append(out, "assignee: "+who)
+			done = true
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
 }

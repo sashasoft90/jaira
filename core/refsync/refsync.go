@@ -179,6 +179,25 @@ func (w Winner) Describe() string {
 	return strings.Join(parts, ", ")
 }
 
+// Holds renders the same state as a statement of ownership rather than of a
+// race. The two refusals are different facts and must not borrow each other's
+// wording: "berk wrote it first" is about who won a push, "berk has it" is
+// about who the ticket belongs to.
+func (w Winner) Holds() string {
+	who := w.Assignee
+	if who == "" {
+		who = w.UpdatedBy
+	}
+	if who == "" {
+		who = "somebody else"
+	}
+	out := who + " has it"
+	if w.Status != "" {
+		out += ", it is in " + w.Status
+	}
+	return out
+}
+
 // Report is one queued write's fate, with the other side named when we lost.
 type Report struct {
 	outbox.Result
@@ -364,6 +383,15 @@ func (y *Syncer) Incoming() ([]Arrival, error) {
 	return out, nil
 }
 
+// isMe answers for the caller's own name, falling back to a plain comparison
+// when nobody told this syncer how identity works.
+func (y *Syncer) isMe(who string) bool {
+	if y.IsMine != nil {
+		return y.IsMine(who)
+	}
+	return strings.EqualFold(strings.TrimSpace(who), strings.TrimSpace(y.Actor))
+}
+
 // hasLocal reports whether the working tree holds a file for this ticket.
 func (y *Syncer) hasLocal(id string) bool {
 	if y.Store == nil {
@@ -485,4 +513,116 @@ func (y *Syncer) Reconcile(id string, lanes *lane.Set) (*Reconciled, error) {
 	out.Content = res.Merged
 	out.Conflicts = res.Conflicts
 	return out, nil
+}
+
+// ErrTaken means the ticket on the ref already belongs to somebody else.
+//
+// It is a separate refusal from a lost race, and both are needed. The
+// compare-and-swap only rules out two writes landing in the same instant; it
+// cannot say "this ticket is not yours", because a pull re-reads the ref
+// immediately before writing and would therefore always hold a current lease.
+// Ownership is a fact recorded in the ticket, so it is checked as one.
+var ErrTaken = errors.New("refsync: the ticket already belongs to someone else")
+
+// Pulled reports what a pull did.
+type Pulled struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	Path  string `json:"path,omitempty"`
+
+	// AlreadyHere means the file was already on this machine and nothing
+	// needed doing. A pull is safe to repeat, so this is a success.
+	AlreadyHere bool `json:"already-here"`
+
+	// Winner is set when the ref refused the take-over: somebody else got
+	// there first, and no file was written.
+	Winner *Winner `json:"winner,omitempty"`
+}
+
+// Pull takes a ticket that lives on its ref and makes it this clone's to work
+// on: it claims the ticket on the ref and only then writes the file here.
+//
+// Two things gate it, and neither is enough alone:
+//
+//   - The ref's assignee. A ticket somebody else has already pulled is
+//     refused with ErrTaken, naming them. This is the check that makes "one
+//     clone has the file" true, because a pull re-reads the ref right before
+//     writing and so would otherwise always hold a current lease.
+//   - The compare-and-swap on the push. That covers the remaining case the
+//     first check cannot see: two clones pulling in the same instant, each
+//     having read an unassigned ticket.
+//
+// The order is the other half of the mechanism. The push goes first. Writing
+// the file first would leave the loser holding a ticket file that belongs to
+// somebody else — the duplicate this design exists to make impossible rather
+// than to resolve.
+//
+// This is also the one write in jaira that is synchronous and does not go
+// through the outbox. That is not an exception to the offline rule but a
+// consequence of it: with no route to the remote there is no ref to read, so
+// there is nothing to take over in the first place.
+func (y *Syncer) Pull(id string, steal bool) (*Pulled, error) {
+	if y == nil || y.Store == nil {
+		return nil, errors.New("refsync: no board here")
+	}
+	if err := y.Usable(); err != nil {
+		return nil, err
+	}
+	// Already here: a repeated pull is a successful no-op, the same as moving a
+	// ticket to the lane it is already in.
+	if t, err := y.Store.Load(id); err == nil {
+		return &Pulled{ID: t.ID, Title: t.Title, Path: t.Path, AlreadyHere: true}, nil
+	}
+	if err := y.Repo.Fetch(); err != nil {
+		return nil, err
+	}
+	content, lease, err := y.Repo.Read(id)
+	if err != nil {
+		return nil, err
+	}
+	d, err := ticket.ParseDoc(content)
+	if err != nil {
+		return nil, fmt.Errorf("refsync: the ref for %s does not carry a ticket: %w", id, err)
+	}
+	if holder, _, _ := d.Scalar(ticket.FieldAssignee); strings.TrimSpace(holder) != "" && !y.isMe(holder) && !steal {
+		out := &Pulled{ID: id}
+		if w, wErr := y.winner(id); wErr == nil {
+			out.Winner = w
+		}
+		return out, fmt.Errorf("%w: %s has it", ErrTaken, holder)
+	}
+	if err := d.SetScalar(ticket.FieldAssignee, y.Actor); err != nil {
+		return nil, err
+	}
+	if err := ticket.Touch(d, time.Now()); err != nil {
+		return nil, err
+	}
+	if err := ticket.TouchBy(d, y.Actor); err != nil {
+		return nil, err
+	}
+	taken := d.Bytes()
+
+	if _, err := y.Repo.Write(id, taken, lease); err != nil {
+		if errors.Is(err, gitref.ErrRaceLost) {
+			out := &Pulled{ID: id}
+			if w, wErr := y.winner(id); wErr == nil {
+				out.Winner = w
+			}
+			return out, err
+		}
+		return nil, err
+	}
+
+	title, _, _ := d.Scalar(ticket.FieldTitle)
+	path := filepath.Join(y.Store.TicketsDir(), ticket.Filename(id, title))
+	if err := os.MkdirAll(y.Store.TicketsDir(), 0o755); err != nil {
+		return nil, err
+	}
+	// Written with the bytes the remote accepted, not with a freshly built
+	// document: what is on the board here and what the team sees on the ref are
+	// then the same file, byte for byte.
+	if err := ticket.WriteAtomic(path, taken); err != nil {
+		return nil, err
+	}
+	return &Pulled{ID: id, Title: title, Path: path}, nil
 }

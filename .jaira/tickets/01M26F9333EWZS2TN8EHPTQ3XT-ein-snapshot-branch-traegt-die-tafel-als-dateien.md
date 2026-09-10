@@ -28,7 +28,8 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-10T20:13:52Z
-updated-at: 2026-09-10T20:13:52Z
+updated-at: 2026-09-10T20:22:44Z
+updated-by: Alexander Sacharov
 ---
 
 # Ein Snapshot-Branch traegt die Tafel als Dateien, ohne dass jemand ihn auscheckt
@@ -36,6 +37,7 @@ updated-at: 2026-09-10T20:13:52Z
 ## Definition of Done
 
 - [ ] 'jaira snapshot' baut den Branch aus dem aktuellen Satz refs/jaira/tickets/* per hash-object, mktree und commit-tree, ohne Checkout und ohne den Arbeitsbaum zu beruehren, und laesst sich in jedem Repo-Zustand aufrufen; der erste Commit ist elternlos, jeder weitere haengt am vorigen, sodass git log die Geschichte der Tafel ist; ein Ticket, dessen Ref verschwunden ist, fehlt im neuen Snapshot und bleibt in den vorigen Commits lesbar; die Dateien liegen unter board/<id>.md, damit ein versehentlicher Merge dieses Branches nie mit .jaira/tickets/ kollidiert; zwei gleichzeitige Snapshots loesen per --force-with-lease auf statt sich zu ueberschreiben; der Branchname ist konfigurierbar und der Befehl sagt, was er hinzugefuegt und entfernt hat
+- [ ] der Tree wird immer neu berechnet, aber nur gepusht wenn sich sein Hash geaendert hat, und der Push haengt an einem Timer oder an einem Kommando, das ohnehin ins Netz geht - niemals an jedem Schreibvorgang
 
 ## Options
 
@@ -47,4 +49,12 @@ updated-at: 2026-09-10T20:13:52Z
 <Steps, in order — filled in by the pre-process step, or by you.>
 
 ## Progress
+- **2026-09-10 20:22 · Alexander Sacharov** — Frage geklaert (Alexander): muss der Snapshot bei jeder Aenderung laufen? Nein - periodisch, und das ist nicht Faulheit, sondern die richtige Antwort. Drei Gruende, in der Reihenfolge ihres Gewichts:
 
+1. Die Historie gibt es schon, und zwar genauer: jedes Ticket hat sein eigenes Ref mit eigener Historie ('git log refs/jaira/tickets/<id>'). Der Snapshot ist NICHT die Quelle der Geschichte, er ist das Backup. Ein Commit pro Schreibvorgang kauft also etwas, das bereits da ist, und zahlt mit Rauschen: hunderte Commits am Tag auf dem Branch.
+
+2. Lokal kostet er fast nichts. Die Blobs liegen schon im Repository - es sind dieselben Objekte, die die Refs tragen -, also kommen pro Snapshot ein Tree und ein Commit hinzu. Und hat sich der Satz Refs nicht geaendert, hat der neu gebaute Tree denselben Hash wie der auf dem Branch: dann ist gar kein Commit noetig, null Objekte.
+
+3. Teuer ist nur der Push, ein Netz-Roundtrip. Der darf aus demselben Grund nicht an jeder Kommandozeile haengen wie der Grund, aus dem 'jaira list' nie aufs Remote wartet.
+
+Daraus die Regel fuer die Umsetzung: den Tree immer billig neu berechnen, aber nur pushen, wenn sich sein Hash geaendert hat; den Push an etwas haengen, das ohnehin ins Netz geht (nach einem schreibenden Kommando) oder an einen Timer im Bereich 10-15 Minuten. Ein zehn Minuten alter Backup-Stand ist kein Problem: der Arbeitsstand liegt immer auf den Refs, der Snapshot ist fuer den Fall 'Remote verloren'.
