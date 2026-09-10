@@ -28,7 +28,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-10T20:13:52Z
-updated-at: 2026-09-10T20:37:03Z
+updated-at: 2026-09-10T21:05:38Z
 updated-by: Alexander Sacharov
 ---
 
@@ -63,3 +63,8 @@ Daraus die Regel fuer die Umsetzung: den Tree immer billig neu berechnen, aber n
 Wem er wirklich dient, sind zwei andere: wer zum ersten Mal klont (der hat keine Refs) und wer nie gefetcht hat. Beides sind langsame Faelle, keine Minutenfaelle. Und faellt der Server wirklich aus, muss sowieso jemand ueberlegen, wie die Tafel wieder erreichbar wird - dabei hilft ein zehn Minuten alter Stand nicht mehr als ein drei Tage alter.
 
 Wichtiger als das Intervall: kein Timer, den jemand von Hand einrichten muss. Das Muster gibt es hier schon und es ist das richtige - die Update-Pruefung laeuft hoechstens einmal am Tag, im Hintergrund und NIE auf dem Kommandopfad (README: 'never on the command path: nothing you run ever waits on the network for this'). Ein Kommando merkt also, dass der letzte Snapshot aelter als drei Tage ist, und erledigt ihn im Hintergrund.
+- **2026-09-10 21:05 · Alexander Sacharov** — Der Snapshot bekommt eine zweite Aufgabe, entschieden zusammen mit RA7PFE: er jaetet die Refs, deren Ticket in einer Landebranch angekommen ist.
+
+Das ist kein Anhaengsel, sondern der Grund, warum es hierhin gehoert: der Snapshot hat das Ticket unmittelbar davor in den Snapshot-Branch geschrieben, also liegt es im Moment des Loeschens in zwei Ablagen - im Snapshot und in der gemergten Branch. Ein Loeschen an jeder anderen Stelle haette diese Garantie nicht.
+
+Reihenfolge im Lauf, nicht beliebig: erst schreiben, dann jaeten. Und was sich nicht aufloest (keine Landebranch bestimmbar), wird nicht angefasst.

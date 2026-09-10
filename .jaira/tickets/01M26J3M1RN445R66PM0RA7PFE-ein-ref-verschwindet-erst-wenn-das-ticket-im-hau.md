@@ -23,7 +23,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-10T21:03:18Z
-updated-at: 2026-09-10T21:04:41Z
+updated-at: 2026-09-10T21:05:35Z
 updated-by: Alexander Sacharov
 ---
 
@@ -32,7 +32,8 @@ updated-by: Alexander Sacharov
 ## Definition of Done
 
 - [ ] logbook und archive loeschen das Ref nicht mehr sofort, sondern schreiben den Endzustand darauf, sodass andere Klone das Ticket als 'fertig, wartet aufs Landen' sehen; das Ref wird entfernt, sobald 'git rev-list -1 <hauptbranch> -- .jaira/logbook/*/<id>* .jaira/archive/<id>*' einen Commit findet, und das laeuft im Hintergrund nach dem Muster der Update-Pruefung statt auf dem Kommandopfad; der Hauptbranch wird aus origin/HEAD bestimmt, mit Fallback auf origin/main und origin/master und einem Eintrag in settings.json; ein Ticket, das im Endzustand steht und seit einer konfigurierbaren Frist nicht im Hauptbranch angekommen ist, wird von fetch und validate gemeldet; es gibt einen ausdruecklichen Befehl, ein solches Ref trotzdem zu entfernen, und er sagt was er tut; Tests mit zwei Klonen belegen, dass das Ticket im Fenster fuer den anderen Klon sichtbar bleibt und nach dem Merge verschwindet
-- [ ] der Hauptbranch wird in dieser Reihenfolge bestimmt: main-branch aus settings.json GEWINNT vor allem anderen (der HEAD des Remotes ist nicht zwingend der Branch, auf den es der Mannschaft ankommt - develop- und Release-Flows gibt es), dann origin/HEAD, dann ein einmaliges 'git remote set-head origin -a' im Hintergrund; loest sich keiner davon auf, wird KEIN Ref entfernt und einmal gesagt, was einzutragen ist
+- [ ] die Landebranches stehen als LISTE in settings.json ('landing-branches', z.B. main, master, develop, release/*, Glob erlaubt) - damit erledigt sich die Frage, wie die wichtige Branch bei wem heisst; ohne Eintrag gilt origin/HEAD als einziger Eintrag, und loest sich auch der nicht auf, wird KEIN Ref entfernt und einmal gesagt, was einzutragen ist
+- [ ] das Entfernen selbst gehoert in den Snapshot-Lauf (PTQ3XT), nicht in logbook/archive und nicht in einen eigenen Timer: der Snapshot geht periodisch ohnehin ueber alle Refs, und er hat das Ticket unmittelbar davor in den Snapshot-Branch geschrieben - im Moment des Loeschens liegt es also in zwei Ablagen. Reihenfolge im Lauf: erst schreiben, dann jaeten
 
 ## Options
 
@@ -60,3 +61,14 @@ Wichtiger als die Reihenfolge ist zweierlei:
 1. settings.json gewinnt vor origin/HEAD, nicht umgekehrt. Der HEAD des Remotes ist der Default des Hosters, nicht zwingend der Branch, auf den es der Mannschaft ankommt: develop-Flows und Release-Branches sind normal. Das ist nicht zu erraten, aber zu erfragen.
 
 2. Loest sich nichts auf, wird kein Ref entfernt. Ein stehengelassenes Ref kostet nichts; ein faelschlich entferntes nimmt genau die Sichtbarkeit weg, fuer die dieses Ticket existiert. Der unsichere Fall muss also auf die konservative Seite fallen, und einmal sagen, was einzutragen waere.
+- **2026-09-10 21:05 · Alexander Sacharov** — Entschieden (Alexander), zwei Vereinfachungen, die beide besser sind als mein Entwurf:
+
+1. Keine 'Hauptbranch', sondern eine Liste. 'landing-branches' in settings.json mit Globs. Damit ist die Frage 'wie heisst die wichtige Branch bei euch' nicht mehr zu beantworten, sondern zu konfigurieren, und develop- oder Release-Flows sind kein Sonderfall mehr. Fehlt der Eintrag, ist origin/HEAD der einzige Eintrag der Liste.
+
+2. Gejaetet wird im Snapshot-Lauf, nicht in logbook/archive und nicht in einem eigenen Timer. Drei Gruende, der zweite ist der eigentliche:
+
+   - Der Snapshot geht periodisch ohnehin ueber alle Refs. Ein zweiter solcher Durchgang haette keinen eigenen Anlass.
+   - Er hat das Ticket unmittelbar davor in den Snapshot-Branch geschrieben. Im Moment des Loeschens liegt es also in ZWEI Ablagen: im Snapshot und in der Branch, in der es gelandet ist. Es gibt damit buchstaeblich nichts zu verlieren - das ist der Unterschied zwischen 'aufraeumen' und 'wegwerfen'.
+   - Eine Stelle entscheidet 'dieses Ref hat seinen Zweck erfuellt', statt derselben Pruefung verteilt auf logbook, archive und einen Hintergrundtimer.
+
+   Reihenfolge im Lauf ist damit festgelegt und nicht beliebig: erst den Snapshot schreiben, dann jaeten.
