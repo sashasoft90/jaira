@@ -28,7 +28,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-10T20:13:52Z
-updated-at: 2026-09-10T20:22:44Z
+updated-at: 2026-09-10T20:37:03Z
 updated-by: Alexander Sacharov
 ---
 
@@ -37,7 +37,7 @@ updated-by: Alexander Sacharov
 ## Definition of Done
 
 - [ ] 'jaira snapshot' baut den Branch aus dem aktuellen Satz refs/jaira/tickets/* per hash-object, mktree und commit-tree, ohne Checkout und ohne den Arbeitsbaum zu beruehren, und laesst sich in jedem Repo-Zustand aufrufen; der erste Commit ist elternlos, jeder weitere haengt am vorigen, sodass git log die Geschichte der Tafel ist; ein Ticket, dessen Ref verschwunden ist, fehlt im neuen Snapshot und bleibt in den vorigen Commits lesbar; die Dateien liegen unter board/<id>.md, damit ein versehentlicher Merge dieses Branches nie mit .jaira/tickets/ kollidiert; zwei gleichzeitige Snapshots loesen per --force-with-lease auf statt sich zu ueberschreiben; der Branchname ist konfigurierbar und der Befehl sagt, was er hinzugefuegt und entfernt hat
-- [ ] der Tree wird immer neu berechnet, aber nur gepusht wenn sich sein Hash geaendert hat, und der Push haengt an einem Timer oder an einem Kommando, das ohnehin ins Netz geht - niemals an jedem Schreibvorgang
+- [ ] der Tree wird billig neu berechnet und nur gepusht wenn sich sein Hash geaendert hat; ausgeloest wird das im Hintergrund, wenn der letzte Snapshot aelter als drei Tage ist (Intervall konfigurierbar), nach dem Muster der Update-Pruefung - nie auf dem Kommandopfad, nie als Timer, den jemand von Hand einrichten muss, und niemals bei jedem Schreibvorgang
 
 ## Options
 
@@ -58,3 +58,8 @@ updated-by: Alexander Sacharov
 3. Teuer ist nur der Push, ein Netz-Roundtrip. Der darf aus demselben Grund nicht an jeder Kommandozeile haengen wie der Grund, aus dem 'jaira list' nie aufs Remote wartet.
 
 Daraus die Regel fuer die Umsetzung: den Tree immer billig neu berechnen, aber nur pushen, wenn sich sein Hash geaendert hat; den Push an etwas haengen, das ohnehin ins Netz geht (nach einem schreibenden Kommando) oder an einen Timer im Bereich 10-15 Minuten. Ein zehn Minuten alter Backup-Stand ist kein Problem: der Arbeitsstand liegt immer auf den Refs, der Snapshot ist fuer den Fall 'Remote verloren'.
+- **2026-09-10 20:37 · Alexander Sacharov** — Kadenz entschieden (Alexander): alle 3 Tage, nicht alle 10-15 Minuten. Sein Argument ist das bessere: die Refs liegen bei jedem Teilnehmer lokal, also ist die Tafel aus JEDEM Klon rekonstruierbar - der Snapshot ist nicht das Mittel gegen 'das Remote ist gerade ausgefallen'.
+
+Wem er wirklich dient, sind zwei andere: wer zum ersten Mal klont (der hat keine Refs) und wer nie gefetcht hat. Beides sind langsame Faelle, keine Minutenfaelle. Und faellt der Server wirklich aus, muss sowieso jemand ueberlegen, wie die Tafel wieder erreichbar wird - dabei hilft ein zehn Minuten alter Stand nicht mehr als ein drei Tage alter.
+
+Wichtiger als das Intervall: kein Timer, den jemand von Hand einrichten muss. Das Muster gibt es hier schon und es ist das richtige - die Update-Pruefung laeuft hoechstens einmal am Tag, im Hintergrund und NIE auf dem Kommandopfad (README: 'never on the command path: nothing you run ever waits on the network for this'). Ein Kommando merkt also, dass der letzte Snapshot aelter als drei Tage ist, und erledigt ihn im Hintergrund.

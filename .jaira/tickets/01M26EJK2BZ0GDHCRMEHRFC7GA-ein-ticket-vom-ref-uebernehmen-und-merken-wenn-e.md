@@ -29,7 +29,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-10T20:01:34Z
-updated-at: 2026-09-10T20:23:33Z
+updated-at: 2026-09-10T20:36:27Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-373879
 claimed-at: 2026-09-10T20:17:44Z
@@ -63,8 +63,12 @@ assignee: Alexander Sacharov
   proof: core/refsync/refsync.go Pull + internal/cli/pull.go; Tests TestOnlyOneCloneCanPullATicket, TestPullingATicketYouAlreadyHaveIsANoOp; Smoke gegen zwei Klone
 - [x] Tests mit zwei Klonen: berk pullt und hat die Datei, ada verliert und hat KEINE Datei, doppeltes pull ist No-op
   proof: core/refsync/refsync.go Pull + internal/cli/pull.go; Tests TestOnlyOneCloneCanPullATicket, TestPullingATicketYouAlreadyHaveIsANoOp; Smoke gegen zwei Klone
-- [ ] README: eigener Abschnitt zum Ablauf mit einem mermaid-Sequenzdiagramm, das zeigt, wie zwei Leute ein Ticket austauschen (create nur aufs Ref, fetch liest, pull gewinnt per CAS, Verlierer bekommt die Meldung) - mermaid, weil GitHub es selbst zeichnet und es im Gegensatz zu einem png von Hand aenderbar bleibt
+- [~] README: eigener Abschnitt zum Ablauf mit einem mermaid-Sequenzdiagramm, das zeigt, wie zwei Leute ein Ticket austauschen (create nur aufs Ref, fetch liest, pull gewinnt per CAS, Verlierer bekommt die Meldung) - mermaid, weil GitHub es selbst zeichnet und es im Gegensatz zu einem png von Hand aenderbar bleibt
 - [ ] README: die Zeile 'clone and see the same board' auf den neuen Ablauf korrigieren, statt sie still falsch werden zu lassen
+- [ ] jaira release <id>: den assignee auf dem Ref per CAS loeschen und die lokale Datei entfernen - danach kann es jeder holen. Ohne das ist eine Zuweisung eine Reservierung, die niemand zurueckgeben kann
+- [ ] Reservierung dokumentieren: 'create --assignee berk' materialisiert bei berk NICHTS, es reserviert nur; berk sieht 'neu fuer dich' und holt es selbst. In welchem Branch er arbeitet, ist nicht Sache des Zuweisenden
+- [ ] Board: ein Ticket, das mir zugewiesen ist und noch nicht hier liegt, ist eine eigene Karte mit 'pull' statt nur eine Zahl in der Hinweiszeile - ein zugewiesenes Ticket ist der Fall, fuer den das alles existiert
+- [ ] --steal sagt laut, von wem genommen wurde, und schreibt es in eine Notiz am Ticket
 
 ## Progress
 - **2026-09-10 20:14 · Alexander Sacharov** — Reihenfolge, in der das gebaut werden muss: erst pull (dieses Ticket), dann darf create aufhoeren, lokal zu schreiben. Umgekehrt gaebe es einen Zustand, in dem ein Ticket auf einem Ref liegt und niemand es holen kann.
