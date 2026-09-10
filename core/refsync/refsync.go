@@ -392,14 +392,48 @@ func (y *Syncer) isMe(who string) bool {
 	return strings.EqualFold(strings.TrimSpace(who), strings.TrimSpace(y.Actor))
 }
 
-// hasLocal reports whether the working tree holds a file for this ticket.
-func (y *Syncer) hasLocal(id string) bool {
+// localPath is the file this working tree holds for a ticket, if any.
+//
+// Asked from the filenames rather than through Store.Load, and that is not a
+// detail: Load answers for a ticket on a ref too, with no path, so using it to
+// mean "is it here" would report every visible ticket as present.
+func (y *Syncer) localPath(id string) (string, bool) {
 	if y.Store == nil {
-		return false
+		return "", false
 	}
-	_, err := y.Store.Load(id)
-	return err == nil
+	paths, err := y.Store.Paths()
+	if err != nil {
+		return "", false
+	}
+	for _, p := range paths {
+		if ticket.IDFromFilename(filepath.Base(p)) == id {
+			return p, true
+		}
+	}
+	return "", false
 }
+
+// localIDs is the set of ticket ids this working tree holds a file for, read
+// from the filenames alone.
+func (y *Syncer) localIDs() map[string]bool {
+	out := map[string]bool{}
+	if y.Store == nil {
+		return out
+	}
+	paths, err := y.Store.Paths()
+	if err != nil {
+		return out
+	}
+	for _, p := range paths {
+		if id := ticket.IDFromFilename(filepath.Base(p)); id != "" {
+			out[id] = true
+		}
+	}
+	return out
+}
+
+// hasLocal reports whether the working tree holds a file for this ticket.
+func (y *Syncer) hasLocal(id string) bool { return y.localIDs()[id] }
 
 func (y *Syncer) loadSeen() seen {
 	s := seen{}
@@ -474,11 +508,9 @@ func (y *Syncer) Reconcile(id string, lanes *lane.Set) (*Reconciled, error) {
 	_, out.Unsent = y.Pending(id)
 
 	var local []byte
-	if y.Store != nil {
-		if t, err := y.Store.Load(id); err == nil {
-			if b, err := os.ReadFile(t.Path); err == nil {
-				local = b
-			}
+	if path, ok := y.localPath(id); ok {
+		if b, err := os.ReadFile(path); err == nil {
+			local = b
 		}
 	}
 	if y.Usable() != nil {
@@ -569,9 +601,14 @@ func (y *Syncer) Pull(id string, steal bool) (*Pulled, error) {
 		return nil, err
 	}
 	// Already here: a repeated pull is a successful no-op, the same as moving a
-	// ticket to the lane it is already in.
-	if t, err := y.Store.Load(id); err == nil {
-		return &Pulled{ID: t.ID, Title: t.Title, Path: t.Path, AlreadyHere: true}, nil
+	// ticket to the lane it is already in. The question is whether there is a
+	// FILE, not whether the board can see the ticket — it can see every ref.
+	if path, ok := y.localPath(id); ok {
+		out := &Pulled{ID: id, Path: path, AlreadyHere: true}
+		if t, err := y.Store.Load(id); err == nil {
+			out.Title = t.Title
+		}
+		return out, nil
 	}
 	if err := y.Repo.Fetch(); err != nil {
 		return nil, err
@@ -691,11 +728,65 @@ func (y *Syncer) Release(id string, force bool) (*Released, error) {
 
 	title, _, _ := d.Scalar(ticket.FieldTitle)
 	out := &Released{ID: id, Title: title}
-	if t, err := y.Store.Load(id); err == nil {
-		if err := os.Remove(t.Path); err != nil && !os.IsNotExist(err) {
+	if path, ok := y.localPath(id); ok {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 			return out, err
 		}
-		out.Removed = t.Path
+		out.Removed = path
+	}
+	return out, nil
+}
+
+// Extra hands the store the tickets this board can see but has no file for —
+// the ones still travelling on their refs, unpulled. It satisfies
+// ticket.TicketSource.
+//
+// This is what keeps 'jaira list', 'jaira next', the board and the task mirror
+// showing the whole board once an unworked ticket lives only on its ref. They
+// all read through the store, so none of them has to know that refs exist.
+func (y *Syncer) Extra(have map[string]bool) ([]*ticket.Ticket, error) {
+	if y == nil || y.Usable() != nil {
+		return nil, nil
+	}
+	ids, err := y.Repo.List()
+	if err != nil {
+		return nil, err
+	}
+	// Read from the filenames, never through Store.Load: Load falls back to
+	// this very function for a ticket with no file, and asking it here would
+	// recurse.
+	local := y.localIDs()
+	wanted := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if have[id] {
+			continue
+		}
+		if local[id] {
+			// A file for it exists here after all: the file is the board's
+			// copy, and the ref is not a second ticket.
+			continue
+		}
+		wanted = append(wanted, id)
+	}
+	contents, err := y.Repo.ReadMany(wanted)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*ticket.Ticket, 0, len(contents))
+	for _, id := range wanted {
+		content, ok := contents[id]
+		if !ok {
+			continue
+		}
+		d, err := ticket.ParseDoc(content)
+		if err != nil {
+			continue // a ref whose tree is not a ticket is not this tool's
+		}
+		t, err := ticket.Decode(d, "")
+		if err != nil {
+			continue
+		}
+		out = append(out, t)
 	}
 	return out, nil
 }

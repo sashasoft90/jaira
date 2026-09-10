@@ -519,6 +519,12 @@ func printTable(w io.Writer, ts []*ticket.Ticket, env gate.Env) {
 			if len(t.BlockedBy) > 0 && !gate.Actionable(env, t) {
 				flags += " [blocked]"
 			}
+			// On its ref and not on this disk: it can be read and it cannot be
+			// written, so the row says which command changes that rather than
+			// letting the next write fail to explain it.
+			if t.ReadOnly {
+				flags += " [pull it]"
+			}
 			fmt.Fprintf(w, "  %-10s %-52s %s%s\n", ticket.Handle(t.ID), truncate(t.Title, 52), t.Assignee, flags)
 		}
 	}
@@ -1149,6 +1155,7 @@ func ticketJSON(t *ticket.Ticket, lanes *lane.Set) map[string]any {
 		"status":             t.Status,
 		"status_known":       known,
 		"ready":              gate.Ready(t),
+		"on-ref-only":        t.ReadOnly,
 		"creator":            t.Creator,
 		"assignee":           t.Assignee,
 		"executed_by":        t.ExecutedBy,

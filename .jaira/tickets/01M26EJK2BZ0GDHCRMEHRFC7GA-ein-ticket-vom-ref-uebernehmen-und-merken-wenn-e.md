@@ -29,7 +29,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-10T20:01:34Z
-updated-at: 2026-09-10T20:40:24Z
+updated-at: 2026-09-10T20:48:19Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-373879
 claimed-at: 2026-09-10T20:17:44Z
@@ -99,3 +99,18 @@ Eine Ausnahme, die bleiben muss: konnte das Ticket nicht gesendet werden, BLEIBT
 release loescht den assignee auf dem Ref per CAS und entfernt danach die Datei - in dieser Reihenfolge, damit ein Fehlschlag das Ticket noch dir laesst und nicht 'niemandem, aber noch auf deiner Platte'. Ein fremdes Ticket wird abgelehnt und nennt den Halter; --force fuer den Fall, dass die Person nicht zurueckkommt.
 
 Handprobe, Ablauf komplett: ada legt zwei Tickets an (0 Dateien bei ihr), berk fetcht und sieht beide als 'ref-only', zieht sein zugewiesenes, gibt es zurueck (Datei weg), danach kann ada es ziehen. Ein Board ohne Remote verhaelt sich unveraendert.
+- **2026-09-10 20:48 · Alexander Sacharov** — Der Sammelpunkt ist jetzt global, und der Audit dazu hat drei Fehler gefunden - alle vom selben Typ.
+
+Wie es gemacht ist: der Store bekommt neben Recorder (nach draussen) eine Source (nach innen), und core/refsync erfuellt beide. List haengt die Tickets an, die das Board sieht ohne eine Datei zu haben; Load faellt darauf zurueck, wenn kein Pfad passt. Damit sehen list, next, show, tasks und das Board alles, ohne von Refs zu wissen - genau wie beim Schreiben. Ein Aufrufer, der eine zweite Stelle fragen muesste, waere ein Aufrufer, der die halbe Tafel zeigt.
+
+Gefunden beim Durchgehen ALLER Kommandos gegen ein Board, dessen Tickets nur auf Refs liegen:
+
+1. archive, delete und logbook nahmen t.Path, der bei einem Ticket ohne Datei leer ist. filepath.Base("") ist ".", also war das Ziel das Archivverzeichnis selbst und archive antwortete mit Unsinn: 'archive already exists in the archive', exit 1. Jetzt eine Pruefung onlyOnRef in genau diesen drei Funktionen - jedes Kommando, das eine Ticketdatei bewegt oder entfernt, laeuft durch sie.
+
+2. Meine eigene Source hat pull kaputt gemacht: Load antwortet jetzt auch fuer ein Ticket auf dem Ref, also hielt pull es fuer 'schon hier' und tat nichts (sichtbar als 'is already here:' mit leerem Pfad). Die Frage ist, ob eine DATEI da ist, nicht ob das Board das Ticket sieht - es sieht jedes Ref. Dafuer gibt es jetzt localPath/localIDs, die nur Dateinamen lesen. Dieselbe Falle steckte in Release und Reconcile.
+
+3. validate meldete einen leeren Pfad. Steht jetzt als '(on its ref; pull it to work on it)' - der Unterschied zwischen 'geh und reparier die Datei' und 'das ist hier nicht deins zu reparieren'.
+
+Achtung fuer spaeter, das ist die Lehre: Load darf nicht mehr als 'ist es hier' gelesen werden. Wer einen Pfad braucht, muss ihn ueber die Dateinamen holen. Der Typ traegt das jetzt: Ticket.ReadOnly.
+
+Ergebnis des Audits: alle Lesekommandos sehen die Tickets, alle Schreibkommandos verweigern mit exit 3 und einem Satz, der den naechsten Schritt nennt.

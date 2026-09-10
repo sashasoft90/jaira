@@ -277,6 +277,57 @@ func (r *Repo) Delete(id, lease string) error {
 	return nil
 }
 
+// ReadMany returns the ticket files carried by many refs, in two git
+// invocations rather than two per ticket.
+//
+// Measured on this project: reading a hundred tickets one at a time costs
+// about a quarter of a second, almost all of it process startup, while one
+// cat-file --batch pass is not measurable. The board reads every ticket on
+// every refresh, so the per-ticket shape would grow into the one thing this
+// tool must never be — slow to open.
+func (r *Repo) ReadMany(ids []string) (map[string][]byte, error) {
+	out := make(map[string][]byte, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	var in strings.Builder
+	for _, id := range ids {
+		fmt.Fprintf(&in, "%s:%s.md\n", RefName(id), id)
+	}
+	stdout, _, err := r.run(in.String(), "cat-file", "--batch")
+	if err != nil {
+		if errors.Is(err, ErrNoGit) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("gitref: cat-file --batch: %w", err)
+	}
+	// Each answer is "<sha> blob <size>\n<size bytes>\n", or a line ending in
+	// "missing" for a ref that has gone. Parsing by the declared size rather
+	// than by scanning for the next header is what makes a ticket containing
+	// the word "blob" harmless.
+	rest := stdout
+	for _, id := range ids {
+		nl := strings.IndexByte(rest, '\n')
+		if nl < 0 {
+			break
+		}
+		header := rest[:nl]
+		rest = rest[nl+1:]
+		fields := strings.Fields(header)
+		if len(fields) < 3 {
+			continue // missing, ambiguous: not an error, just nothing to show
+		}
+		var size int
+		if _, err := fmt.Sscanf(fields[2], "%d", &size); err != nil || size > len(rest) {
+			break
+		}
+		out[id] = []byte(rest[:size])
+		rest = rest[size:]
+		rest = strings.TrimPrefix(rest, "\n")
+	}
+	return out, nil
+}
+
 // Fetch brings every ticket ref up to date in one roundtrip. The refspec is
 // explicit because the default one does not carry these refs — which is the
 // property that keeps them invisible to people who do not use jaira.

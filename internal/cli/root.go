@@ -120,6 +120,11 @@ func report(err error) int {
 		switch {
 		case errors.Is(err, ticket.ErrNotFound), errors.Is(err, ticket.ErrAmbiguous):
 			code, reason = ExitNotFound, "not_found"
+		case errors.Is(err, ticket.ErrOnRefOnly):
+			// A refusal, not a failure: the ticket is real and one command
+			// away, so it gets the gate's exit code rather than the
+			// unexpected-error one.
+			code, reason = ExitValidation, "on_ref_only"
 		case errors.Is(err, ticket.ErrNoStore):
 			code, reason = ExitError, "no_store"
 		case errors.Is(err, ticket.ErrUnsafeYAML):

@@ -87,11 +87,39 @@ type Store struct {
 	// nothing, which is the case for every board without a remote.
 	Recorder WriteRecorder
 
+	// Source supplies tickets this board can see but has no file for — a
+	// ticket that is still travelling on its own git ref and has not been
+	// pulled into work here.
+	//
+	// It is the mirror of Recorder, and it exists for the same reason: every
+	// reader in this program goes through List and Load, and a reader that had
+	// to remember to ask a second place would be a reader that silently shows
+	// half the board. core/ticket stays unaware of git; the package that knows
+	// (core/refsync) fills this in.
+	Source TicketSource
+
 	// dupIDs accumulates tickets that declare an id another file already claimed.
 	// Two files with one id is an ambiguity a person has to settle, so it is
 	// surfaced rather than resolved by read order.
 	dupIDs []string
 }
+
+// TicketSource hands over tickets that exist for this board without a file
+// here.
+type TicketSource interface {
+	// Extra returns those tickets, skipping any id in have. Implementations
+	// mark what they return as ReadOnly: there is no file to write to, so a
+	// mutation has to be refused rather than half-applied.
+	Extra(have map[string]bool) ([]*Ticket, error)
+}
+
+// ErrOnRefOnly means the ticket exists for this board but not as a file here,
+// so it cannot be written to until somebody pulls it.
+//
+// It is separate from ErrNotFound because the two ask different things of the
+// user: one means the id is wrong, the other means the ticket is real and one
+// command away.
+var ErrOnRefOnly = errors.New("ticket: on its ref and not on your disk; pull it first")
 
 // WriteRecorder is told what a ticket now says, after the file has been written.
 type WriteRecorder interface {
@@ -115,6 +143,20 @@ type WriteRecorder interface {
 // (it is), while the failure to hand it on is worth a line to the user. A
 // recorder that returns nothing but this is still a working board.
 var ErrNotRecorded = errors.New("ticket: the write was not recorded for the remote")
+
+// onlyOnRef refuses an operation that needs a file for a ticket that has none.
+//
+// Every command that moves or removes a ticket file goes through Archive,
+// Delete or Logbook, so the check sits in those three rather than in each
+// command. Without it the empty path turns into nonsense — filepath.Base("")
+// is ".", and archiving a ticket that is not here reported "already exists in
+// the archive".
+func onlyOnRef(t *Ticket) error {
+	if t != nil && t.ReadOnly {
+		return fmt.Errorf("%s: %w", Handle(t.ID), ErrOnRefOnly)
+	}
+	return nil
+}
 
 func (s *Store) recordDelete(id string) error {
 	if s.Recorder == nil {
@@ -196,6 +238,9 @@ func (s *Store) Archive(id string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if err := onlyOnRef(t); err != nil {
+		return "", err
+	}
 	if err := os.MkdirAll(s.ArchiveDir(), 0o755); err != nil {
 		return "", err
 	}
@@ -232,6 +277,9 @@ func (s *Store) Delete(id string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if err := onlyOnRef(t); err != nil {
+		return "", err
+	}
 	real, err := filepath.EvalSymlinks(t.Path)
 	if err != nil {
 		real = t.Path
@@ -254,6 +302,9 @@ func (s *Store) Delete(id string) (string, error) {
 func (s *Store) Logbook(id, folder string) (string, error) {
 	t, err := s.Load(id)
 	if err != nil {
+		return "", err
+	}
+	if err := onlyOnRef(t); err != nil {
 		return "", err
 	}
 	dir := filepath.Join(s.LogbookDir(), filepath.Base(folder))
@@ -485,6 +536,15 @@ func (s *Store) List() ([]*Ticket, error) {
 	if _, err := s.idIndex(); err == nil {
 		problems = append(problems, s.dupIDs...)
 	}
+	// And then whatever the board can see without having a file for it. Added
+	// here rather than by each caller: list, next, the board and the task
+	// mirror all read through this one function, and a caller that forgot would
+	// show half the board.
+	have := make(map[string]bool, len(out))
+	for _, t := range out {
+		have[t.ID] = true
+	}
+	out = append(out, s.extra(have)...)
 	if len(problems) > 0 {
 		return out, &PartialError{Problems: problems}
 	}
@@ -562,9 +622,31 @@ func hasClosingDelim(b []byte) bool {
 	return i >= 0
 }
 
+// extra asks the source for tickets with no file here, skipping the ids given.
+func (s *Store) extra(have map[string]bool) []*Ticket {
+	if s.Source == nil {
+		return nil
+	}
+	out, err := s.Source.Extra(have)
+	if err != nil {
+		return nil
+	}
+	for _, t := range out {
+		t.ReadOnly = true
+	}
+	return out
+}
+
 // Load reads one ticket in full, resolving an exact ID or unambiguous prefix.
 func (s *Store) Load(idOrPrefix string) (*Ticket, error) {
 	path, err := s.resolve(idOrPrefix)
+	if errors.Is(err, ErrNotFound) {
+		// Not here as a file — but the board may still know it, and showing a
+		// ticket that is one command away is worth more than "not found".
+		if t, ok := s.fromSource(idOrPrefix); ok {
+			return t, nil
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -577,6 +659,28 @@ func (s *Store) Load(idOrPrefix string) (*Ticket, error) {
 		return nil, err
 	}
 	return Decode(d, path)
+}
+
+// fromSource looks up a ticket the board can see but has no file for, by exact
+// id or unambiguous prefix, the same way resolve does for files.
+func (s *Store) fromSource(idOrPrefix string) (*Ticket, bool) {
+	want := NormalizeIDPrefix(idOrPrefix)
+	if want == "" {
+		return nil, false
+	}
+	var match *Ticket
+	for _, t := range s.extra(nil) {
+		switch {
+		case t.ID == want:
+			return t, true
+		case strings.HasPrefix(t.ID, want), strings.HasSuffix(t.ID, want):
+			if match != nil {
+				return nil, false // ambiguous: let the caller report not found
+			}
+			match = t
+		}
+	}
+	return match, match != nil
 }
 
 // resolve maps a reference to exactly one ticket path.
@@ -699,6 +803,14 @@ func (s *Store) Create(fields map[string]string, lists map[string][]string, body
 func (s *Store) Mutate(idOrPrefix string, fn func(*Ticket) error) (*Ticket, error) {
 	path, err := s.resolve(idOrPrefix)
 	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			// The board may still know this ticket: it is on its ref and has
+			// not been pulled. Saying so is the difference between "your id is
+			// wrong" and "you are one command away".
+			if t, ok := s.fromSource(idOrPrefix); ok {
+				return nil, fmt.Errorf("%s: %w", Handle(t.ID), ErrOnRefOnly)
+			}
+		}
 		return nil, err
 	}
 	id := IDFromFilename(filepath.Base(path))

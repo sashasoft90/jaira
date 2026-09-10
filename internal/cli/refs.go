@@ -31,6 +31,9 @@ func attachRefs(s *ticket.Store) {
 		return assignee != "" && coreidentity.IsMe(s.Root, assignee)
 	}
 	s.Recorder = refs
+	// And the same syncer supplies what the board can see without having a
+	// file for it, so list, next and show are never half a board.
+	s.Source = refs
 }
 
 // fireHook calls the user's script for a move or a claim, for delivery that

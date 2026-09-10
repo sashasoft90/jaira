@@ -32,6 +32,7 @@ func newSyncer(s *ticket.Store, me string) *refsync.Syncer {
 	y.IsMine = func(assignee string) bool {
 		return assignee != "" && identity.IsMe(s.Root, assignee)
 	}
+	s.Source = y
 	return y
 }
 
