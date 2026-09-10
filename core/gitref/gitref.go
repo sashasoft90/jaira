@@ -1,0 +1,361 @@
+// Package gitref carries a ticket on a git ref of its own, outside
+// refs/heads.
+//
+// The problem it solves: a ticket file lives in the branch of whoever wrote it.
+// If that branch is unpushed, stale or force-pushed, the person the ticket was
+// assigned to sees nothing — not the title, not even the id. Scanning every
+// branch for ticket files is expensive and still wrong.
+//
+// A ref under refs/jaira/tickets/<id> belongs to no branch. The default
+// refspec does not fetch it, so a clone by someone who does not use jaira is
+// unaffected, and the push onto it is a compare-and-swap that uses the ref lock
+// the hosting provider already implements. No server, no daemon: the remote
+// that is already there is the channel.
+//
+// The ref's tree carries the ticket file itself rather than only its id, so a
+// colleague reads the whole ticket without a branch and without a checkout:
+//
+//	git show refs/jaira/tickets/<id>:<id>.md
+//
+// The ticket file also stays in the code commit, and the two answer different
+// questions: the file in the commit says what this change was and why, the ref
+// says where the ticket stands right now and with whom. Same bytes, one of them
+// on a channel that is visible without the branch.
+package gitref
+
+import (
+	"bytes"
+	"errors"
+	"fmt"
+	"os/exec"
+	"strings"
+)
+
+// Prefix is the ref namespace. It is outside refs/heads deliberately: the
+// default refspec does not fetch it, so these refs are invisible to anyone who
+// does not ask for them, and they never show up as branches or in a hosting
+// provider's web UI.
+const Prefix = "refs/jaira/tickets/"
+
+// DefaultRemote is where refs go when nothing is configured.
+const DefaultRemote = "origin"
+
+var (
+	// ErrRaceLost means someone else wrote the ref after we read it. The
+	// caller has stale bytes and must re-read; it is not a transport failure
+	// and retrying the same push would only lose again.
+	ErrRaceLost = errors.New("gitref: the ticket moved since it was read")
+
+	// ErrOffline means the remote could not be reached at all. The write is
+	// not lost and not refused — it is unsent, which is what the outbox is
+	// for.
+	ErrOffline = errors.New("gitref: the remote is unreachable")
+
+	// ErrNoRef means the ticket has no ref yet.
+	ErrNoRef = errors.New("gitref: no ref for this ticket")
+
+	// ErrNoGit means the git binary is unavailable.
+	ErrNoGit = errors.New("gitref: git is not available on PATH")
+)
+
+// Repo is a working tree together with the remote its ticket refs live on.
+type Repo struct {
+	Dir    string
+	Remote string
+
+	// Author names the identity written onto the ref commit. It is separate
+	// from git config on purpose: these commits are made in the background of
+	// somebody else's command, and a machine with no user.name configured (CI,
+	// a fresh container) must still be able to write a ticket rather than fail
+	// with git's "please tell me who you are".
+	AuthorName  string
+	AuthorEmail string
+}
+
+// RefName is the ref a ticket travels on.
+func RefName(id string) string { return Prefix + id }
+
+func (r *Repo) remote() string {
+	if strings.TrimSpace(r.Remote) == "" {
+		return DefaultRemote
+	}
+	return r.Remote
+}
+
+func (r *Repo) author() (string, string) {
+	name, email := r.AuthorName, r.AuthorEmail
+	if strings.TrimSpace(name) == "" {
+		name = "jaira"
+	}
+	if strings.TrimSpace(email) == "" {
+		email = "jaira@localhost"
+	}
+	return name, email
+}
+
+// run executes git and keeps stdout and stderr apart, because the classification
+// of a failed push lives in stderr and must not be mixed into the value a
+// successful call returns.
+func (r *Repo) run(stdin string, args ...string) (string, string, error) {
+	if _, err := exec.LookPath("git"); err != nil {
+		return "", "", ErrNoGit
+	}
+	cmd := exec.Command("git", append([]string{"-C", r.Dir}, args...)...)
+	name, email := r.author()
+	cmd.Env = append(cmd.Environ(),
+		"GIT_AUTHOR_NAME="+name, "GIT_AUTHOR_EMAIL="+email,
+		"GIT_COMMITTER_NAME="+name, "GIT_COMMITTER_EMAIL="+email,
+		// A push that waits for a credential prompt would hang a command the
+		// user ran for another reason entirely. Failing is the correct answer:
+		// an unsent write goes to the outbox.
+		"GIT_TERMINAL_PROMPT=0",
+	)
+	if stdin != "" {
+		cmd.Stdin = strings.NewReader(stdin)
+	}
+	var out, errb bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &errb
+	err := cmd.Run()
+	return out.String(), errb.String(), err
+}
+
+// value runs git for its stdout and reports a failure as an error naming the
+// command, matching gitrepo's shape for everything that is not a push.
+func (r *Repo) value(args ...string) (string, error) {
+	out, errb, err := r.run("", args...)
+	if err != nil {
+		if errors.Is(err, ErrNoGit) {
+			return "", err
+		}
+		msg := strings.TrimSpace(errb)
+		if msg == "" {
+			msg = err.Error()
+		}
+		return "", fmt.Errorf("git %s: %s", strings.Join(args, " "), msg)
+	}
+	return strings.TrimSpace(out), nil
+}
+
+// SHA returns the commit the ticket's local ref points at, or ErrNoRef. This
+// SHA is the lease: every write is a compare-and-swap against the value the
+// writer last read.
+func (r *Repo) SHA(id string) (string, error) {
+	out, _, err := r.run("", "rev-parse", "--verify", "--quiet", RefName(id))
+	if err != nil {
+		if errors.Is(err, ErrNoGit) {
+			return "", err
+		}
+		return "", ErrNoRef
+	}
+	if sha := strings.TrimSpace(out); sha != "" {
+		return sha, nil
+	}
+	return "", ErrNoRef
+}
+
+// Read returns the ticket file carried by the local ref.
+func (r *Repo) Read(id string) ([]byte, string, error) {
+	sha, err := r.SHA(id)
+	if err != nil {
+		return nil, "", err
+	}
+	out, errb, runErr := r.run("", "show", sha+":"+id+".md")
+	if runErr != nil {
+		if errors.Is(runErr, ErrNoGit) {
+			return nil, "", runErr
+		}
+		return nil, "", fmt.Errorf("gitref: ref %s carries no %s.md: %s", RefName(id), id, strings.TrimSpace(errb))
+	}
+	return []byte(out), sha, nil
+}
+
+// Write puts the ticket file on the ref and pushes it, refusing if the remote
+// moved since lease was read.
+//
+// The commit takes the leased SHA as its parent when there is one, so the ref
+// keeps the ticket's history (git log on the ref is the ticket's movement) and
+// a stale write is a non-fast-forward that git rejects on its own.
+// --force-with-lease is still passed: it is the check that holds when a ticket
+// is written for the first time by two people at once, where neither commit has
+// a parent to compare.
+//
+// An empty lease means "no ref yet" and requires the remote to have none
+// either.
+func (r *Repo) Write(id string, content []byte, lease string) (string, error) {
+	blob, err := r.hashObject(content)
+	if err != nil {
+		return "", err
+	}
+	tree, err := r.mktree(id+".md", blob)
+	if err != nil {
+		return "", err
+	}
+	args := []string{"commit-tree", tree, "-m", "jaira: " + id}
+	if lease != "" {
+		args = append(args, "-p", lease)
+	}
+	commit, err := r.value(args...)
+	if err != nil {
+		return "", err
+	}
+	if err := r.push(id, commit, lease); err != nil {
+		return "", err
+	}
+	// Only now is the local ref moved: it records what the remote accepted, so
+	// the next lease is a SHA the remote has really seen.
+	if _, err := r.value("update-ref", RefName(id), commit); err != nil {
+		return commit, err
+	}
+	return commit, nil
+}
+
+// Delete removes the ticket's ref, locally and on the remote. A logged or
+// archived ticket is off the board, and leaving its ref behind would keep it on
+// everybody else's.
+func (r *Repo) Delete(id, lease string) error {
+	if err := r.pushRefspec(id, ":"+RefName(id), lease); err != nil {
+		return err
+	}
+	_, _, _ = r.run("", "update-ref", "-d", RefName(id))
+	return nil
+}
+
+// Fetch brings every ticket ref up to date in one roundtrip. The refspec is
+// explicit because the default one does not carry these refs — which is the
+// property that keeps them invisible to people who do not use jaira.
+//
+// --prune is part of the contract, not a tidy-up: a ticket that was logged or
+// archived deletes its ref, and without pruning that ticket would sit on
+// everyone else's board forever, deleted for its owner and immortal for
+// everyone else.
+func (r *Repo) Fetch() error {
+	_, errb, err := r.run("", "fetch", "--quiet", "--prune", r.remote(), "+"+Prefix+"*:"+Prefix+"*")
+	if err != nil {
+		if errors.Is(err, ErrNoGit) {
+			return err
+		}
+		return classify(errb, err)
+	}
+	return nil
+}
+
+// List returns the ticket ids that have a local ref.
+func (r *Repo) List() ([]string, error) {
+	out, err := r.value("for-each-ref", "--format=%(refname)", Prefix)
+	if err != nil {
+		return nil, err
+	}
+	return idsFrom(out, func(line string) string { return line }), nil
+}
+
+// ListRemote asks the remote which tickets exist, without fetching them. One
+// roundtrip is cheap enough to run before a command needs the contents.
+func (r *Repo) ListRemote() ([]string, error) {
+	out, errb, err := r.run("", "ls-remote", r.remote(), Prefix+"*")
+	if err != nil {
+		if errors.Is(err, ErrNoGit) {
+			return nil, err
+		}
+		return nil, classify(errb, err)
+	}
+	return idsFrom(out, func(line string) string {
+		if i := strings.IndexAny(line, " \t"); i >= 0 {
+			return strings.TrimSpace(line[i:])
+		}
+		return line
+	}), nil
+}
+
+func idsFrom(out string, refOf func(string) string) []string {
+	var ids []string
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		ref := refOf(line)
+		if id := strings.TrimPrefix(ref, Prefix); id != ref && id != "" {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+func (r *Repo) hashObject(content []byte) (string, error) {
+	out, errb, err := r.run(string(content), "hash-object", "-w", "--stdin")
+	if err != nil {
+		if errors.Is(err, ErrNoGit) {
+			return "", err
+		}
+		return "", fmt.Errorf("gitref: hash-object: %s", strings.TrimSpace(errb))
+	}
+	return strings.TrimSpace(out), nil
+}
+
+func (r *Repo) mktree(name, blob string) (string, error) {
+	entry := fmt.Sprintf("100644 blob %s\t%s\n", blob, name)
+	out, errb, err := r.run(entry, "mktree")
+	if err != nil {
+		if errors.Is(err, ErrNoGit) {
+			return "", err
+		}
+		return "", fmt.Errorf("gitref: mktree: %s", strings.TrimSpace(errb))
+	}
+	return strings.TrimSpace(out), nil
+}
+
+func (r *Repo) push(id, commit, lease string) error {
+	return r.pushRefspec(id, commit+":"+RefName(id), lease)
+}
+
+func (r *Repo) pushRefspec(id, refspec, lease string) error {
+	args := []string{"push", "--force-with-lease=" + RefName(id) + ":" + lease, r.remote(), refspec}
+	_, errb, err := r.run("", args...)
+	if err != nil {
+		if errors.Is(err, ErrNoGit) {
+			return err
+		}
+		return classify(errb, err)
+	}
+	return nil
+}
+
+// classify separates losing a race from having no network, because the two need
+// opposite handling: a lost race means re-read and tell the user who was
+// quicker, an unreachable remote means keep the write and send it later.
+// Retrying a lost race would only lose again; discarding an unsent write would
+// lose the ticket.
+func classify(stderr string, err error) error {
+	s := strings.ToLower(stderr)
+	switch {
+	case strings.Contains(s, "stale info"),
+		strings.Contains(s, "non-fast-forward"),
+		strings.Contains(s, "fetch first"),
+		strings.Contains(s, "rejected"):
+		return fmt.Errorf("%w: %s", ErrRaceLost, firstLine(stderr))
+	case strings.Contains(s, "could not resolve host"),
+		strings.Contains(s, "could not read from remote"),
+		strings.Contains(s, "unable to access"),
+		strings.Contains(s, "connection"),
+		strings.Contains(s, "network is unreachable"),
+		strings.Contains(s, "timed out"),
+		strings.Contains(s, "terminal prompts disabled"),
+		strings.Contains(s, "authentication failed"),
+		strings.Contains(s, "does not appear to be a git repository"),
+		strings.Contains(s, "no such remote"):
+		return fmt.Errorf("%w: %s", ErrOffline, firstLine(stderr))
+	}
+	if msg := firstLine(stderr); msg != "" {
+		return fmt.Errorf("gitref: %s", msg)
+	}
+	return fmt.Errorf("gitref: %w", err)
+}
+
+func firstLine(s string) string {
+	for _, line := range strings.Split(s, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			return line
+		}
+	}
+	return ""
+}
