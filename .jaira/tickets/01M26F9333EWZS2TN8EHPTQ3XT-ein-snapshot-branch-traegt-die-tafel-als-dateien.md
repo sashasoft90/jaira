@@ -1,7 +1,7 @@
 ---
 id: 01M26F9333EWZS2TN8EHPTQ3XT
 title: "Ein Snapshot-Branch traegt die Tafel als Dateien, ohne dass jemand ihn auscheckt"
-status: in-progress
+status: human
 ready: true
 creator: Alexander Sacharov
 goal: "Ein elternloser Branch jaira/board haelt zu jedem Zeitpunkt genau die Tickets, die gerade auf Refs liegen, wird per Plumbing ohne Checkout geschrieben und kann nie mit den Arbeitsdateien kollidieren"
@@ -26,13 +26,18 @@ definition-of-done: "'jaira snapshot' baut den Branch aus dem aktuellen Satz ref
 tags:
   - concurrency
 blocked-by: []
-commits: []
+commits:
+  - fe864ec705086aafcd4b16fab0556d9dd2c3ceb7
 created-at: 2026-09-10T20:13:52Z
-updated-at: 2026-09-10T21:20:02Z
+updated-at: 2026-09-10T21:20:29Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-447398
 claimed-at: 2026-09-10T21:07:00Z
 assignee: Alexander Sacharov
+question: "Snapshot steht: elternloser Branch jaira/board, alle drei Tage im Hintergrund, board/<id>.md, kein Commit wenn sich nichts aendert. Zwei Fragen: (1) Reicht dir der Default von drei Tagen, oder soll er kuerzer sein? (2) Soll 'jaira snapshot' auch etwas sagen, wenn nichts zu tun war - im Moment sagt es 'already current'."
+outcome-what: "core/snapshot: Snapshot-Branch per Plumbing ohne Checkout, Hintergrundlauf nach dem Muster der Update-Pruefung, plus das Jaeten der Refs gelandeter Tickets"
+outcome-why: "Ein Ticket, das niemand bearbeitet, lebt nur auf seinem Ref - damit liegt ein unberuehrter Backlog nur auf dem Remote, und wer zum ersten Mal klont hat gar nichts"
+outcome-resolves: "Beide DoD-Punkte belegt: der Branch wird aus dem aktuellen Satz Refs per hash-object/mktree/commit-tree gebaut ohne den Arbeitsbaum zu beruehren, der erste Commit ist elternlos und jeder weitere haengt am vorigen, ein entfernter Ref fehlt im neuen Snapshot und bleibt in den vorigen lesbar, die Dateien liegen unter board/ statt .jaira/tickets/, zwei gleichzeitige Laeufe loesen per --force-with-lease auf, und ausgeloest wird im Hintergrund bei einem Stand aelter als drei Tage - nie auf dem Kommandopfad"
 ---
 
 # Ein Snapshot-Branch traegt die Tafel als Dateien, ohne dass jemand ihn auscheckt

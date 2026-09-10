@@ -1,7 +1,7 @@
 ---
 id: 01M26J3M1RN445R66PM0RA7PFE
 title: "Ein Ref verschwindet erst, wenn das Ticket im Hauptbranch angekommen ist"
-status: in-progress
+status: human
 ready: true
 creator: Alexander Sacharov
 goal: "Zwischen 'ins Logbuch gelegt' und 'im Hauptbranch angekommen' bleibt das Ticket fuer alle sichtbar, damit niemand dasselbe Problem ein zweites Mal aufschreibt"
@@ -21,13 +21,18 @@ definition-of-done: "logbook und archive loeschen das Ref nicht mehr sofort, son
 tags:
   - concurrency
 blocked-by: []
-commits: []
+commits:
+  - fe864ec705086aafcd4b16fab0556d9dd2c3ceb7
 created-at: 2026-09-10T21:03:18Z
-updated-at: 2026-09-10T21:20:05Z
+updated-at: 2026-09-10T21:20:33Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-447398
 claimed-at: 2026-09-10T21:07:14Z
 assignee: Alexander Sacharov
+question: "Der Ref lebt jetzt bis zum Landen. Eine Frage: die Frist, nach der ein 'fertig, aber nirgends angekommen' gemeldet wird, steht auf sieben Tagen - passt das zu euren Reviews, oder eher drei?"
+outcome-what: "logbook und archive schreiben den Endzustand aufs Ref statt es zu loeschen; das Jaeten haengt am Snapshot-Lauf und greift nur bei Tickets, die in einer Landebranch weggelegt sind; Landebranches als Liste in settings.json; Meldung fuer nie angekommene Tickets plus 'jaira snapshot --drop'"
+outcome-why: "Zwischen 'ins Logbuch gelegt' und 'gemergt' war das Ticket fuer alle anderen unsichtbar, weil das Ref schon weg war und die Datei nur im Branch der abraeumenden Person lag - wer dasselbe Problem bemerkt, schreibt es ein zweites Mal auf"
+outcome-resolves: "Jeder DoD-Punkt gegen echtes git belegt: nach archive lebt der Ref weiter, ein Snapshot ohne Landung laesst ihn stehen, nach dem Merge meldet der Lauf 'landed and cleared' und der Ref ist weg waehrend das Ticket im Snapshot-Branch liegt; der Hauptbranch kommt aus der Liste in settings.json, sonst aus origin/HEAD, und ohne beides wird nichts entfernt; fetch und validate melden ein nie angekommenes Ticket; 'jaira snapshot --drop' ist der ausdrueckliche Ausweg"
 ---
 
 # Ein Ref verschwindet erst, wenn das Ticket im Hauptbranch angekommen ist
