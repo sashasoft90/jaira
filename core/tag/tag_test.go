@@ -2,6 +2,7 @@ package tag
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -367,8 +368,33 @@ func TestSaveWritesViaTempFileAndRename(t *testing.T) {
 	if err := os.WriteFile(Path(root), []byte("ui: 33\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	before, err := os.Stat(Path(root))
-	if err != nil {
+	// Pin the file as it stands before Save by giving it a second name. A
+	// rename replaces the directory entry Path(root) points at; the file that
+	// was there keeps living under the link, so reading the link afterwards
+	// still yields the old bytes, whereas an in-place truncate-and-write would
+	// show the new ones under both names. Surviving old bytes are the property
+	// the atomic write is bought for — a reader caught mid-write sees the
+	// previous file whole — so pinning them pins the thing that matters rather
+	// than a proxy for it. The link lives outside .jaira so the check further
+	// down, that no temporary file is left behind, still sees an empty
+	// directory beside the registry.
+	//
+	// Not os.SameFile over a pair of os.Stat results, which is the obvious way
+	// to write this and is unfalsifiable on Windows: there os.Stat records only
+	// the path and defers the file identity, which SameFile then loads by
+	// reopening that path (os/types_windows.go:287). Both the before and the
+	// after FileInfo resolve to whatever the path names at comparison time —
+	// the same, already-renamed file — so the assertion passes whatever Save
+	// did. It went green on linux and macos and red on windows-latest for
+	// exactly that reason.
+	//
+	// And not an open handle held across the Save, whether from os.Open or from
+	// os.Root: on Windows a handle on the rename target makes MoveFileEx fail
+	// with "Access is denied", so Save itself dies and the test reports a
+	// product fault that is not there. Delete sharing does not rescue it. A
+	// hard link holds no handle at all, and NTFS supports it.
+	link := filepath.Join(root, "tags-before")
+	if err := os.Link(Path(root), link); err != nil {
 		t.Fatal(err)
 	}
 
@@ -381,13 +407,12 @@ func TestSaveWritesViaTempFileAndRename(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// A rename replaces the inode; an in-place truncate-and-write would keep it.
-	after, err := os.Stat(Path(root))
+	old, err := os.ReadFile(link)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if os.SameFile(before, after) {
-		t.Error("Save wrote in place: the file was not replaced by a rename")
+	if string(old) != "ui: 33\n" {
+		t.Errorf("Save wrote in place: the file linked before Save reads %q, want the pre-Save bytes", old)
 	}
 	// And no temporary file is left behind in .jaira.
 	ents, err := os.ReadDir(root + "/.jaira")
