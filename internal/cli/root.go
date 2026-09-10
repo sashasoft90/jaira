@@ -99,6 +99,10 @@ func Execute(version string) int {
 	release.Current = version
 	root := newRoot(version)
 	err := root.Execute()
+	// After the command, not during it: sending happens once, and it happens
+	// even when the command failed, because a ticket that was written is a
+	// ticket the team should see.
+	flushRefs()
 	if err == nil {
 		return ExitOK
 	}
@@ -234,6 +238,9 @@ func openStore() (*ticket.Store, error) {
 	// than per command, because "who is writing" is a property of the process,
 	// and a command that forgot to set it would silently write anonymously.
 	s.Actor = identity()
+	// Every write through this store is also queued for the ticket's own ref,
+	// so a ticket reaches whoever it was assigned to without a shared branch.
+	attachRefs(s)
 	bindDriverIfShared(s)
 	nudgeIfStale(s)
 	return s, nil

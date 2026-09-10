@@ -13,7 +13,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-10T17:41:04Z
-updated-at: 2026-09-10T19:05:06Z
+updated-at: 2026-09-10T19:15:40Z
 assignee: Alexander Sacharov
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-244146
@@ -137,19 +137,24 @@ Remote, das ohnehin da ist. Wer jaira nicht benutzt, sieht von alldem nichts.
   proof: core/gitref/gitref.go:Write/Read, TestTicketArrivesWithoutASharedBranch
 - [x] core/gitref: Push mit --force-with-lease=<ref>:<gelesener sha>, Fehler typisieren: ErrRaceLost (non-fast-forward/stale info) vs ErrOffline (Netz/Remote weg)
   proof: core/gitref/gitref.go:classify + push, TestSecondWriterLosesTheRace / TestUnreachableRemoteIsOfflineNotARace
-- [ ] Entschieden: asynchron. Mutate/Create legen den Schreibvorgang in eine Outbox, gepusht wird ausserhalb - Voraussetzung fuer offline claim, loest zugleich TUI und Merge-Driver
-- [ ] Schreibpfad anbinden: der Push haengt an Store.Mutate + Store.Create, nicht an create/claim/move/note/dod einzeln (alle 20+ Aufrufstellen laufen durch diese zwei)
-- [ ] Bei Ablehnung: Ticket aus dem Ref neu einlesen und dem Aufrufer melden, wer schneller war (Assignee + updated-at aus dem fremden Ref)
+- [x] Entschieden: asynchron. Mutate/Create legen den Schreibvorgang in eine Outbox, gepusht wird ausserhalb - Voraussetzung fuer offline claim, loest zugleich TUI und Merge-Driver
+  proof: core/refsync/refsync.go - Record/RecordDelete legen nur ab, Flush sendet ausserhalb des Schreibpfads
+- [x] Schreibpfad anbinden: der Push haengt an Store.Mutate + Store.Create, nicht an create/claim/move/note/dod einzeln (alle 20+ Aufrufstellen laufen durch diese zwei)
+  proof: core/ticket/store.go: Mutate/Create rufen record(), Archive/Delete/Logbook rufen recordDelete(); internal/cli/root.go openStore + internal/tui/model.go haengen den Recorder an
+- [x] Bei Ablehnung: Ticket aus dem Ref neu einlesen und dem Aufrufer melden, wer schneller war (Assignee + updated-at aus dem fremden Ref)
+  proof: core/refsync/refsync.go:winner + Winner.Describe, internal/cli/refs.go flushRefs; TestARejectedWriteNamesWhoWasQuicker
 - [ ] Lesepfad: fetch von +refs/jaira/tickets/*:refs/jaira/tickets/* plus git ls-remote als billiger Ueberblick
 - [ ] Board: eine Geschichte pro Ticket - lokale Datei als Basis, Ref via core/merge.Merge dazu (base = Blob des Parent-Commits), plus die Marker ref-only und unsent an der Karte
 - [ ] Settings-Datei in ~/.jaira/ anlegen (existiert heute nicht, nur projects.json und state/) - traegt den Abschalter fuer die Benachrichtigung
 - [ ] Desktop-Benachrichtigung bei Zuweisung an mich: notify-send / osascript per os/exec, kein neues Modul, faellt still aus wenn nichts da ist
 - [ ] Optionaler Hook bei move/claim: jaira ruft ein Skript auf und bringt keine Abhaengigkeit mit
-- [ ] logbook und archive loeschen das Ref (git push origin :refs/jaira/tickets/<id>)
+- [x] logbook und archive loeschen das Ref (git push origin :refs/jaira/tickets/<id>)
+  proof: core/ticket/store.go Archive/Delete/Logbook -> recordDelete -> outbox OpDelete; TestRecordDeleteTakesTheRefDown
 - [ ] Tests: Bare-Repo plus zwei Klone in t.TempDir(), echtes Rennen, Uebernahme, Merge zweier Branches am selben Ticket
 - [x] Outbox unter ~/.jaira/state/<worktree>/: ein noch nicht gepushter Schreibvorgang pro Ticket, mit dem gelesenen Sha als Lease
   proof: core/outbox/outbox.go (Queue/Pending/List/Drop/Flush), 8 Tests in core/outbox/outbox_test.go, darunter TestAnOfflineWriteArrivesWhenTheNetworkIsBack gegen echtes git
-- [ ] Outbox abarbeiten beim naechsten Kommando, das Netz hat; abgelehnter nachgeholter Push meldet dem Benutzer, wer schneller war
+- [x] Outbox abarbeiten beim naechsten Kommando, das Netz hat; abgelehnter nachgeholter Push meldet dem Benutzer, wer schneller war
+  proof: internal/cli/root.go Execute ruft flushRefs nach dem Kommando; internal/cli/refs.go meldet rejected/unsent/failed auf stderr
 - [ ] Board-Remote konfigurierbar (Default origin) - die Settings-Datei traegt es neben dem Abschalter der Benachrichtigung
 - [ ] README: wozu die Refs da sind, welche Befehle sie schreiben und lesen, wie das Board-Remote konfiguriert wird, und die Fork-Grenze ausdruecklich (kein Push-Recht = Ticketdatei im Branch plus PR)
 - [ ] TUI: Fetch nur im Hintergrund (tea.Cmd + Program.Send), gezeichnet wird aus lokalen Dateien und bereits gefetchten Refs - nie Netz in View/Update
@@ -231,13 +236,27 @@ Harte Anforderung ans TUI: Fetch ist Netz und hat in View/Update nichts zu suche
 Ein verlorenes Rennen loescht seinen Eintrag: erneut senden wuerde nur erneut verlieren, und die lokale Datei liegt weiter da - das Board fuehrt das Ref per core/merge dazu. Ein unklassifizierter git-Fehler behaelt den Eintrag, denn Wegwerfen bei einem Fehler, den niemand eingeordnet hat, ist der einzige Ausgang, der wirklich Arbeit verliert.
 
 Was die Outbox nicht macht: sie sperrt nicht. Zwei Sessions, die gleichzeitig flushen, pushen beide, eine verliert das Rennen und raeumt ihren Eintrag - das korrigiert sich selbst. Eine Sperre waere hier teurer als das Problem.
+- **2026-09-10 19:15 · Alexander Sacharov** — Schreibpfad angebunden, drei Dinge, die beim Bauen entschieden oder gefunden wurden:
+
+1. core/ticket bekommt eine Recorder-Schnittstelle (WriteRecorder mit Record und RecordDelete), core/refsync erfuellt sie. Umgekehrt waere es ein Importzyklus: outbox und refsync lesen Tickets, also darf core/ticket sie nicht kennen. Die Schnittstelle steht damit aus demselben Grund da wie das Feld Actor - der Aufrufer weiss, wer er ist, und core/ticket muss nichts von git wissen.
+
+2. Ein Fehler des Recorders macht die Mutation nicht rueckgaengig. Zu dem Zeitpunkt liegt die Datei schon auf der Platte, also ist es kein Veto. Dafuer gibt es ticket.ErrNotRecorded: der Aufrufer kann melden 'lokal geschrieben, nicht weitergegeben', ohne dass die Mutation als gescheitert gilt.
+
+3. Geflusht wird nur, wenn dieser Prozess selbst etwas eingereiht hat (refsync.Dirty). Ein Lesekommando bleibt damit vollstaendig vom Netz weg - 'jaira list' darf nie auf ein Remote warten. Gesendet wird in cli.Execute nach dem Kommando, auch wenn das Kommando gescheitert ist: ein Ticket, das geschrieben wurde, soll das Team sehen.
+
+Gefunden und behoben, war im Plan nicht vorgesehen: 'kein Repository' und 'Remote nicht erreichbar' sind zwei verschiedene Zustaende, und mein erster Wurf hat beide als offline behandelt. Ein Verzeichnis ohne .git ist ein unterstuetzter Weg, jaira zu benutzen (README: git ist optional) - dort darf nichts eingereiht werden, sonst zeigt die Karte fuer immer 'unsent'. Also gibt es jetzt gitref.ErrNoRepo und Repo.Usable(), einmal pro Prozess gefragt und gecacht, statt es aus einem gescheiterten Push zu erraten. Belegt in TestABoardWithoutARemoteRecordsNothing und TestUsableRejectsAMissingRemote.
+
+Nebenbei aufgefallen: meine ersten Offline-Tests haben Offline mit einem Remote-Pfad simuliert, der kein Repository ist - das ist gerade nicht offline. Sie zeigen jetzt auf 127.0.0.1:1, was sofort refused liefert, ohne echten Timeout im Test.
+
+Smoke-Test mit dem gebauten Binary gegen ein Bare-Repo und zwei Klone: create legt das Ref an, der zweite Klon liest das ganze Ticket per git show ohne einen einzigen Branch (git branch -a ist leer), und nach einem fremden Push meldet 'jaira note' auf stderr: 'was not sent: someone else wrote it first, it is now in review'.
 
 ## Definition of Done
 
 - [x] core/gitref liest, schreibt und loescht refs/jaira/tickets/<id> mit CAS und unterscheidet 'Rennen verloren' von 'Netz weg'
   proof: core/gitref/gitref.go (Write/Read/Delete/SHA, ErrRaceLost vs ErrOffline), 7 Tests in core/gitref/gitref_test.go gegen ein Bare-Repo mit zwei Klonen
 - [ ] Ein konfigurierbares Board-Remote entscheidet, wohin die Refs gehen; Default origin
-- [ ] create, claim, move, note und dod pushen das Ticket zusaetzlich ins Ref und melden bei Ablehnung, wer schneller war
+- [x] create, claim, move, note und dod pushen das Ticket zusaetzlich ins Ref und melden bei Ablehnung, wer schneller war
+  proof: internal/cli/root.go openStore haengt den Recorder an, Execute flusht danach; die Meldung bei Ablehnung ist im Smoke-Test gegen echtes git erschienen
 - [ ] Ein Fetch holt die Refs und das Board zeigt Ref-Tickets samt Besitzer, auch ohne den Branch des Schreibers
 - [ ] Eine Zuweisung an mich erzeugt eine Desktop-Benachrichtigung, per Konfiguration abschaltbar
 - [ ] Ein optionaler Hook bei move und claim wird aufgerufen, ohne dass jaira eine Abhaengigkeit mitbringt

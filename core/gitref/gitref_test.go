@@ -199,9 +199,12 @@ func TestListRemoteSeesEveryTicket(t *testing.T) {
 // An unreachable remote is not a lost race: the write is unsent, and the caller
 // has to be able to tell the difference to know whether to re-read or to keep
 // the write for later.
+//
+// Port 1 on the loopback refuses immediately, which is the offline case without
+// a test that waits for a real timeout.
 func TestUnreachableRemoteIsOfflineNotARace(t *testing.T) {
 	ada, _ := twoClones(t)
-	git(t, ada.Dir, "remote", "set-url", "origin", filepath.Join(t.TempDir(), "gone.git"))
+	git(t, ada.Dir, "remote", "set-url", "origin", "https://127.0.0.1:1/board.git")
 
 	_, err := ada.Write("01TEST", []byte(ticket), "")
 	if !errors.Is(err, gitref.ErrOffline) {
@@ -214,6 +217,37 @@ func TestUnreachableRemoteIsOfflineNotARace(t *testing.T) {
 	// first write, not one holding a lease the remote has never seen.
 	if _, err := ada.SHA("01TEST"); !errors.Is(err, gitref.ErrNoRef) {
 		t.Errorf("a refused push moved the local ref anyway: %v", err)
+	}
+}
+
+// A remote that answers but is not a repository is neither offline nor a lost
+// race: waiting does not fix it and re-reading does not either, so it must not
+// be reported as either.
+func TestARemoteThatIsNotARepositorySaysSo(t *testing.T) {
+	ada, _ := twoClones(t)
+	git(t, ada.Dir, "remote", "set-url", "origin", filepath.Join(t.TempDir(), "not-a-repo"))
+
+	_, err := ada.Write("01TEST", []byte(ticket), "")
+	if !errors.Is(err, gitref.ErrNoRepo) {
+		t.Fatalf("want ErrNoRepo, got %v", err)
+	}
+}
+
+// Usable answers the permanent question — can this checkout carry refs at all —
+// separately from what one push did.
+func TestUsableRejectsAMissingRemote(t *testing.T) {
+	ada, _ := twoClones(t)
+	if err := ada.Usable(); err != nil {
+		t.Fatalf("a clone with an origin should be usable: %v", err)
+	}
+	git(t, ada.Dir, "remote", "remove", "origin")
+	if err := ada.Usable(); !errors.Is(err, gitref.ErrNoRepo) {
+		t.Errorf("want ErrNoRepo without a remote, got %v", err)
+	}
+
+	plain := &gitref.Repo{Dir: t.TempDir(), Remote: "origin"}
+	if err := plain.Usable(); !errors.Is(err, gitref.ErrNoRepo) {
+		t.Errorf("a directory that is not a repository: want ErrNoRepo, got %v", err)
 	}
 }
 

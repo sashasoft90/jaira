@@ -1,0 +1,86 @@
+package cli
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+
+	"github.com/BeMuCa/jaira/core/outbox"
+	"github.com/BeMuCa/jaira/core/refsync"
+	"github.com/BeMuCa/jaira/core/ticket"
+)
+
+// refs is this process's link between the ticket store and the refs tickets
+// travel on. It is a package variable for the same reason the store's Actor is
+// set in one place: every command opens its store through openStore, and a
+// command that had to remember to wire this up itself would be a command that
+// silently stops carrying tickets to the team.
+var refs *refsync.Syncer
+
+// attachRefs makes every write through this store also queue the ticket for its
+// ref.
+func attachRefs(s *ticket.Store) {
+	refs = refsync.New(s, "", s.Actor)
+	s.Recorder = refs
+}
+
+// flushRefs sends what this command queued, and is called once after the
+// command has finished — including after it failed, because a ticket the
+// command did manage to write is a ticket the team should see.
+//
+// It sends nothing, and touches no network, unless this process actually queued
+// something. A read command therefore stays entirely off the network, which is
+// what keeps 'jaira list' instant.
+func flushRefs() {
+	if !refs.Dirty() {
+		return
+	}
+	reports, err := refs.Flush()
+	if err != nil {
+		warnRef(map[string]any{"error": err.Error()},
+			"jaira: warning: the ticket could not be sent to the remote: %v", err)
+		return
+	}
+	for _, r := range reports {
+		switch r.Outcome {
+		case outbox.Sent:
+			// The normal case says nothing. A line on every write would be
+			// noise on the one path every command takes.
+		case outbox.Rejected:
+			line := "someone else wrote it first"
+			if r.Winner != nil {
+				line = r.Winner.Describe()
+			}
+			warnRef(map[string]any{"ticket": r.ID, "outcome": "rejected", "winner": r.Winner},
+				"jaira: %s was not sent: %s\n  your file is unchanged; the board shows both sides once the ref is fetched",
+				ticket.Handle(r.ID), line)
+		case outbox.Unsent:
+			warnRef(map[string]any{"ticket": r.ID, "outcome": "unsent"},
+				"jaira: %s is written locally and waiting to be sent; it goes out with your next command",
+				ticket.Handle(r.ID))
+		case outbox.Failed:
+			warnRef(map[string]any{"ticket": r.ID, "outcome": "failed", "error": errText(r.Err)},
+				"jaira: %s could not be sent: %v", ticket.Handle(r.ID), r.Err)
+		}
+	}
+}
+
+// warnRef writes to stderr in whichever shape the caller asked for. Never
+// stdout: a command's stdout is its result, and an agent parsing --json output
+// must not find a status line in the middle of it.
+func warnRef(payload map[string]any, format string, args ...any) {
+	if g.jsonOut {
+		if b, err := json.Marshal(payload); err == nil {
+			fmt.Fprintf(os.Stderr, "%s\n", b)
+			return
+		}
+	}
+	fmt.Fprintf(os.Stderr, format+"\n", args...)
+}
+
+func errText(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}

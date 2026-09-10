@@ -25,6 +25,7 @@ import (
 	"github.com/BeMuCa/jaira/core/lane"
 	"github.com/BeMuCa/jaira/core/move"
 	"github.com/BeMuCa/jaira/core/project"
+	"github.com/BeMuCa/jaira/core/refsync"
 	"github.com/BeMuCa/jaira/core/session"
 	"github.com/BeMuCa/jaira/core/tag"
 	"github.com/BeMuCa/jaira/core/ticket"
@@ -231,6 +232,10 @@ func New(s *ticket.Store) (*Model, error) {
 	m.me = identity.Current(s.Root)
 	// Mutations from the board record who made them, the same as the CLI's.
 	s.Actor = m.me
+	// And they are queued for the ticket's own ref, the same as the CLI's.
+	// Queued, not sent: nothing in the update loop may wait for a network, so
+	// the board files the write and a command with a route sends it.
+	s.Recorder = refsync.New(s, "", m.me)
 	m.myAliases = identity.Aliases(s.Root)
 	if err := m.reload(); err != nil {
 		return nil, err
@@ -260,6 +265,7 @@ func (m *Model) switchBoard(root string) tea.Cmd {
 	m.me = identity.Current(s.Root)
 	// Mutations from the board record who made them, the same as the CLI's.
 	s.Actor = m.me
+	s.Recorder = refsync.New(s, "", m.me)
 	m.myAliases = identity.Aliases(s.Root)
 	m.scroll = map[string]int{}
 	m.laneIdx, m.cardIdx = 0, 0

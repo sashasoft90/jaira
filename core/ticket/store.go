@@ -79,10 +79,61 @@ type Store struct {
 	// not have to depend on core/identity. Empty records nothing.
 	Actor string
 
+	// Recorder is told about every ticket write, so a ticket can also travel
+	// on a git ref of its own and reach someone who does not have the writer's
+	// branch. It is an interface set by the caller for the same reason Actor
+	// is a field: core/ticket must not know about git, refs or queues, and the
+	// package that does (core/refsync) needs to read tickets. Nil records
+	// nothing, which is the case for every board without a remote.
+	Recorder WriteRecorder
+
 	// dupIDs accumulates tickets that declare an id another file already claimed.
 	// Two files with one id is an ambiguity a person has to settle, so it is
 	// surfaced rather than resolved by read order.
 	dupIDs []string
+}
+
+// WriteRecorder is told what a ticket now says, after the file has been written.
+type WriteRecorder interface {
+	// Record is handed the ticket's id and its complete bytes. It is called
+	// after the local write has succeeded, so it must never be understood as
+	// a veto: by the time it runs, the ticket on disk has already changed.
+	Record(id string, content []byte) error
+
+	// RecordDelete says the ticket has left the board — logged, archived or
+	// deleted. It is told here rather than by each command for the same reason
+	// Record is: leaving a ticket's ref behind would take it off the board for
+	// its owner and leave it on everyone else's forever.
+	RecordDelete(id string) error
+}
+
+// ErrNotRecorded means the local write went through but the recorder did not
+// take it — the ticket is correct on this machine and has not left it.
+//
+// It is a separate sentinel rather than a plain error because the two halves
+// need opposite handling by the caller: the mutation must be reported as done
+// (it is), while the failure to hand it on is worth a line to the user. A
+// recorder that returns nothing but this is still a working board.
+var ErrNotRecorded = errors.New("ticket: the write was not recorded for the remote")
+
+func (s *Store) recordDelete(id string) error {
+	if s.Recorder == nil {
+		return nil
+	}
+	if err := s.Recorder.RecordDelete(id); err != nil {
+		return fmt.Errorf("%w: %w", ErrNotRecorded, err)
+	}
+	return nil
+}
+
+func (s *Store) record(id string, content []byte) error {
+	if s.Recorder == nil {
+		return nil
+	}
+	if err := s.Recorder.Record(id, content); err != nil {
+		return fmt.Errorf("%w: %w", ErrNotRecorded, err)
+	}
+	return nil
 }
 
 // DuplicateIDs reports ids claimed by more than one file, discovered during the
@@ -161,7 +212,7 @@ func (s *Store) Archive(id string) (string, error) {
 	if err := os.Rename(src, dst); err != nil {
 		return "", err
 	}
-	return dst, nil
+	return dst, s.recordDelete(t.ID)
 }
 
 // Delete removes a ticket's file and returns the path it was at.
@@ -191,7 +242,7 @@ func (s *Store) Delete(id string) (string, error) {
 	if real != t.Path {
 		os.Remove(t.Path)
 	}
-	return t.Path, nil
+	return t.Path, s.recordDelete(t.ID)
 }
 
 // Logbook moves a ticket out of the board and into a dated logbook folder,
@@ -222,7 +273,7 @@ func (s *Store) Logbook(id, folder string) (string, error) {
 	if err := os.Rename(src, dst); err != nil {
 		return "", err
 	}
-	return dst, nil
+	return dst, s.recordDelete(t.ID)
 }
 
 // logbookFolders lists the per-person dated folders of the logbook as full
@@ -633,7 +684,11 @@ func (s *Store) Create(fields map[string]string, lists map[string][]string, body
 	if err := WriteAtomic(path, d.Bytes()); err != nil {
 		return nil, err
 	}
-	return Decode(d, path)
+	t, err := Decode(d, path)
+	if err != nil {
+		return nil, err
+	}
+	return t, s.record(id, d.Bytes())
 }
 
 // Mutate applies fn to a ticket under an exclusive lock, then writes it back
@@ -680,7 +735,15 @@ func (s *Store) Mutate(idOrPrefix string, fn func(*Ticket) error) (*Ticket, erro
 	if err := WriteAtomic(path, t.doc.Bytes()); err != nil {
 		return nil, err
 	}
-	return Decode(t.doc, path)
+	out, err := Decode(t.doc, path)
+	if err != nil {
+		return nil, err
+	}
+	// Recorded inside the lock, and only after the file is on disk: the queued
+	// bytes are then exactly the bytes a reader of this repository sees, and no
+	// second mutation can slip between the write and the record and queue an
+	// older state on top of a newer one.
+	return out, s.record(id, t.doc.Bytes())
 }
 
 // lock takes an advisory per-ticket lock. A lock file is used rather than flock

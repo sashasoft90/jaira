@@ -256,8 +256,9 @@ func TestAnOfflineWriteArrivesWhenTheNetworkIsBack(t *testing.T) {
 	repo := &gitref.Repo{Dir: clone, Remote: "origin", AuthorName: "ada", AuthorEmail: "ada@example.test"}
 	b := box(t)
 
-	// Offline: the remote url points nowhere.
-	run(t, clone, "git", "remote", "set-url", "origin", filepath.Join(root, "gone.git"))
+	// Offline: port 1 on the loopback refuses at once, so the test covers the
+	// unreachable-remote case without waiting for a real network timeout.
+	run(t, clone, "git", "remote", "set-url", "origin", "https://127.0.0.1:1/board.git")
 	const content = "---\nid: 01AAA\nassignee: ada\n---\n\n# claimed offline\n"
 	if _, err := repo.Write("01AAA", []byte(content), ""); !errors.Is(err, gitref.ErrOffline) {
 		t.Fatalf("want ErrOffline while offline, got %v", err)

@@ -54,6 +54,12 @@ var (
 	// ErrNoRef means the ticket has no ref yet.
 	ErrNoRef = errors.New("gitref: no ref for this ticket")
 
+	// ErrNoRepo means this board is not in a git repository, or the remote it
+	// was told to use does not exist. It is not a failure to report at every
+	// write: a board without a repository is a supported way to use jaira, it
+	// simply does not carry tickets on refs.
+	ErrNoRepo = errors.New("gitref: no repository or no such remote")
+
 	// ErrNoGit means the git binary is unavailable.
 	ErrNoGit = errors.New("gitref: git is not available on PATH")
 )
@@ -70,6 +76,33 @@ type Repo struct {
 	// with git's "please tell me who you are".
 	AuthorName  string
 	AuthorEmail string
+}
+
+// Usable reports whether this working tree can carry tickets on refs at all:
+// git present, inside a repository, and the remote actually configured.
+//
+// Asked once by the caller rather than inferred from a failed write, because
+// the two are different answers to different questions — "this board does not
+// use refs" is a permanent property of the checkout, while a refused push is
+// about one ticket at one moment.
+func (r *Repo) Usable() error {
+	out, _, err := r.run("", "rev-parse", "--is-inside-work-tree")
+	if err != nil {
+		if errors.Is(err, ErrNoGit) {
+			return err
+		}
+		return ErrNoRepo
+	}
+	if strings.TrimSpace(out) != "true" {
+		return ErrNoRepo
+	}
+	if _, _, err := r.run("", "remote", "get-url", r.remote()); err != nil {
+		if errors.Is(err, ErrNoGit) {
+			return err
+		}
+		return fmt.Errorf("%w: no remote %q", ErrNoRepo, r.remote())
+	}
+	return nil
 }
 
 // RefName is the ref a ticket travels on.
@@ -333,6 +366,10 @@ func classify(stderr string, err error) error {
 		strings.Contains(s, "fetch first"),
 		strings.Contains(s, "rejected"):
 		return fmt.Errorf("%w: %s", ErrRaceLost, firstLine(stderr))
+	case strings.Contains(s, "not a git repository"),
+		strings.Contains(s, "does not appear to be a git repository"),
+		strings.Contains(s, "no such remote"):
+		return fmt.Errorf("%w: %s", ErrNoRepo, firstLine(stderr))
 	case strings.Contains(s, "could not resolve host"),
 		strings.Contains(s, "could not read from remote"),
 		strings.Contains(s, "unable to access"),
@@ -340,9 +377,7 @@ func classify(stderr string, err error) error {
 		strings.Contains(s, "network is unreachable"),
 		strings.Contains(s, "timed out"),
 		strings.Contains(s, "terminal prompts disabled"),
-		strings.Contains(s, "authentication failed"),
-		strings.Contains(s, "does not appear to be a git repository"),
-		strings.Contains(s, "no such remote"):
+		strings.Contains(s, "authentication failed"):
 		return fmt.Errorf("%w: %s", ErrOffline, firstLine(stderr))
 	}
 	if msg := firstLine(stderr); msg != "" {
