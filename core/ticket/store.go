@@ -536,6 +536,7 @@ func (s *Store) List() ([]*Ticket, error) {
 	if _, err := s.idIndex(); err == nil {
 		problems = append(problems, s.dupIDs...)
 	}
+	problems = append(problems, s.offBoardDuplicates(out)...)
 	// And then whatever the board can see without having a file for it. Added
 	// here rather than by each caller: list, next, the board and the task
 	// mirror all read through this one function, and a caller that forgot would
@@ -549,6 +550,63 @@ func (s *Store) List() ([]*Ticket, error) {
 		return out, &PartialError{Problems: problems}
 	}
 	return out, nil
+}
+
+// offBoardDuplicates reports a ticket that is on the board here and also filed
+// away — in the logbook or the archive — at the same time.
+//
+// It happens without anybody doing anything wrong: one clone logs a finished
+// ticket while another still has it under tickets/, and the merge of those two
+// branches is a rename on one side and a modification on the other, which git
+// resolves by keeping both paths. The ticket then lives twice, closed and open.
+//
+// The existing duplicate check cannot see this, because it compares ids only
+// within tickets/. Nothing here moves a file: which of the two copies is right
+// is a question for the person, and a tool that guessed would sometimes reopen
+// finished work.
+func (s *Store) offBoardDuplicates(onBoard []*Ticket) []string {
+	if len(onBoard) == 0 {
+		return nil
+	}
+	here := make(map[string]string, len(onBoard))
+	for _, t := range onBoard {
+		if t.ReadOnly {
+			continue // no file here; there is nothing to be a duplicate of
+		}
+		here[t.ID] = filepath.Base(t.Path)
+	}
+	var problems []string
+	for _, dir := range s.filedAwayDirs() {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+				continue
+			}
+			id := IDFromFilename(e.Name())
+			if id == "" {
+				continue
+			}
+			if base, ok := here[id]; ok {
+				problems = append(problems, fmt.Sprintf(
+					"%s is on the board as %s and also filed away in %s — one of the two has to go, and only you can say which",
+					Handle(id), base, filepath.Join(filepath.Base(filepath.Dir(dir)), filepath.Base(dir), e.Name())))
+			}
+		}
+	}
+	sort.Strings(problems)
+	return problems
+}
+
+// filedAwayDirs are the directories a ticket lands in when it leaves the board.
+func (s *Store) filedAwayDirs() []string {
+	dirs := []string{s.ArchiveDir()}
+	if folders, err := s.logbookFolders(); err == nil {
+		dirs = append(dirs, folders...)
+	}
+	return dirs
 }
 
 // PartialError reports tickets that could not be read while others succeeded.

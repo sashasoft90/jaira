@@ -54,10 +54,12 @@ notifications are turned off in ~/.jaira/settings.json ("notify-off": true).`,
 			if !quiet {
 				announceArrivals(arrivals)
 			}
+			departed := refs.Departed()
 			if g.jsonOut {
-				return emit(cmd.OutOrStdout(), map[string]any{"arrivals": arrivals})
+				return emit(cmd.OutOrStdout(), map[string]any{"arrivals": arrivals, "departed": departed})
 			}
 			printArrivals(cmd.OutOrStdout(), arrivals)
+			printDeparted(cmd.OutOrStdout(), departed)
 			return nil
 		},
 	}
@@ -86,6 +88,22 @@ func announceArrivals(arrivals []refsync.Arrival) {
 			body += " (" + a.Status + ")"
 		}
 		notify.Send("jaira: a ticket is yours", body)
+	}
+}
+
+// printDeparted names the tickets somebody else has taken off the board while
+// a file for them is still here. It says what to run and moves nothing: which
+// copy is right is the person's call, and guessing would sometimes reopen
+// finished work.
+func printDeparted(w io.Writer, departed []refsync.Departure) {
+	if len(departed) == 0 {
+		return
+	}
+	fmt.Fprintln(w)
+	for _, d := range departed {
+		fmt.Fprintf(w, "%-8s left the board elsewhere, but is still here: %s\n", ticket.Handle(d.ID), d.Title)
+		fmt.Fprintf(w, "         file it too with 'jaira logbook %s', or 'jaira archive %s' — or put it back with 'jaira pull %s'\n",
+			ticket.Handle(d.ID), ticket.Handle(d.ID), ticket.Handle(d.ID))
 	}
 }
 

@@ -70,6 +70,14 @@ no ref to read, so there is nothing to take over.`,
 				fmt.Fprintf(cmd.OutOrStdout(), "%s is already here: %s\n", ticket.Handle(got.ID), got.Path)
 				return nil
 			}
+			if got.TakenFrom != "" {
+				// Loud on purpose: the other person's board still says the
+				// ticket is theirs until they fetch, and the only record of
+				// why it stopped being is the note this wrote on the ticket.
+				fmt.Fprintf(cmd.OutOrStdout(), "%s taken over from %s — a note on the ticket says so\n",
+					ticket.Handle(got.ID), got.TakenFrom)
+				fmt.Fprintf(cmd.OutOrStdout(), "  tell them: their board still shows it as theirs until they run 'jaira fetch'\n")
+			}
 			fmt.Fprintf(cmd.OutOrStdout(), "%s is yours: %s\n", ticket.Handle(got.ID), got.Title)
 			fmt.Fprintf(cmd.OutOrStdout(), "  %s\n", got.Path)
 			fmt.Fprintf(cmd.OutOrStdout(), "  commit it with the work, so the change and what it was for arrive together\n")

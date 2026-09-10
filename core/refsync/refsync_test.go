@@ -648,3 +648,100 @@ func TestAnAssignedTicketIsReservedForItsAssignee(t *testing.T) {
 		t.Errorf("berk was refused his own ticket: %+v", got.Winner)
 	}
 }
+
+// Taking a ticket from somebody has to leave a trace. Their board still says
+// the ticket is theirs until they fetch, so the note on the ticket is the only
+// place they can read why it stopped being.
+func TestStealingRecordsWhoItWasTakenFrom(t *testing.T) {
+	ada, berk, _ := twoSides(t)
+	id := fileOnRef(t, ada, "contested")
+
+	if _, err := berk.syncer.Pull(id, false); err != nil {
+		t.Fatalf("berk pull: %v", err)
+	}
+	got, err := ada.syncer.Pull(id, true)
+	if err != nil {
+		t.Fatalf("ada steal: %v", err)
+	}
+	if got.TakenFrom != "berk" {
+		t.Errorf("the steal did not record who it was taken from: %q", got.TakenFrom)
+	}
+	tk, err := ada.store.Load(id)
+	if err != nil {
+		t.Fatalf("ada has no file after stealing: %v", err)
+	}
+	if tk.Assignee != "ada" {
+		t.Errorf("assignee is %q after the steal", tk.Assignee)
+	}
+	if !strings.Contains(tk.Body, "took this ticket over from berk") {
+		t.Errorf("no note on the ticket about the take-over:\n%s", tk.Body)
+	}
+	// And the note is on the ref too, which is the copy berk will fetch.
+	onRef, _, err := berk.syncer.Repo.Read(id)
+	if err == nil && !strings.Contains(string(onRef), "took this ticket over from berk") {
+		if err := berk.syncer.Repo.Fetch(); err != nil {
+			t.Fatalf("berk fetch: %v", err)
+		}
+		onRef, _, err = berk.syncer.Repo.Read(id)
+		if err != nil {
+			t.Fatalf("berk read: %v", err)
+		}
+		if !strings.Contains(string(onRef), "took this ticket over from berk") {
+			t.Errorf("the ref berk fetches carries no trace of the take-over:\n%s", onRef)
+		}
+	}
+}
+
+// One clone takes a ticket off the board while another still has the file. The
+// vanished ref is the signal, and it has to survive the very fetch that
+// notices it — otherwise the report is silent exactly when it matters.
+func TestATicketTakenOffTheBoardElsewhereIsReportedHere(t *testing.T) {
+	ada, berk, _ := twoSides(t)
+	id := fileOnRef(t, ada, "finished elsewhere")
+
+	if _, err := berk.syncer.Pull(id, false); err != nil {
+		t.Fatalf("berk pull: %v", err)
+	}
+	if _, err := berk.syncer.Incoming(); err != nil {
+		t.Fatalf("berk fetch: %v", err)
+	}
+	if d := berk.syncer.Departed(); len(d) != 0 {
+		t.Fatalf("nothing has left the board yet: %+v", d)
+	}
+
+	// Ada takes it over and files it away, which deletes the ref.
+	if _, err := ada.syncer.Pull(id, true); err != nil {
+		t.Fatalf("ada steal: %v", err)
+	}
+	if _, err := ada.store.Archive(id); err != nil {
+		t.Fatalf("ada archive: %v", err)
+	}
+	if _, err := ada.syncer.Flush(); err != nil {
+		t.Fatalf("ada flush: %v", err)
+	}
+
+	// Berk's fetch must both notice and keep noticing.
+	if _, err := berk.syncer.Incoming(); err != nil {
+		t.Fatalf("berk re-fetch: %v", err)
+	}
+	departed := berk.syncer.Departed()
+	if len(departed) != 1 || departed[0].ID != id {
+		t.Fatalf("the ticket that left the board was not reported: %+v", departed)
+	}
+	if departed[0].Path == "" {
+		t.Error("the report does not say which file is still here")
+	}
+	// A second fetch must not lose it: it is unfinished business until the
+	// person deals with it.
+	if _, err := berk.syncer.Incoming(); err != nil {
+		t.Fatalf("berk third fetch: %v", err)
+	}
+	if d := berk.syncer.Departed(); len(d) != 1 {
+		t.Errorf("the report went silent on the next fetch: %+v", d)
+	}
+	// And once it is dealt with, it stops being reported.
+	berk.syncer.ForgetDeparted(id)
+	if d := berk.syncer.Departed(); len(d) != 0 {
+		t.Errorf("still reported after being dealt with: %+v", d)
+	}
+}

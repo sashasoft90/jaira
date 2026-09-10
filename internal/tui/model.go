@@ -179,11 +179,9 @@ type Model struct {
 	// without asking the remote.
 	refSync *refsync.Syncer
 
-	// unsent holds the ids whose write has not reached the remote yet, and
-	// refOnly counts the tickets that exist on a ref but in no branch here.
-	// Both are refreshed from disk on every reload, never from the network.
-	unsent  map[string]bool
-	refOnly int
+	// unsent holds the ids whose write has not reached the remote yet,
+	// refreshed from disk on every reload, never from the network.
+	unsent map[string]bool
 
 	// watch carries filesystem events. A watcher is more responsive than the
 	// timer, but the timer stays as a backstop because change notifications are

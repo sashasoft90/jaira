@@ -36,34 +36,21 @@ func newSyncer(s *ticket.Store, me string) *refsync.Syncer {
 	return y
 }
 
-// refMarks is the local, network-free half: what this clone can say about refs
-// without asking anyone.
+// refMarks is the local, network-free half: which tickets hold a write that has
+// not reached the remote.
 //
-// Both answers come from files already on disk — the outbox and the local refs
-// — because this runs inside reload, on the two-second timer, and nothing on
-// that path may wait for a remote.
+// It reads the outbox, which is files already on disk, because this runs inside
+// reload on the two-second timer and nothing on that path may wait for a
+// remote. Tickets that live only on a ref need no counting here: the store
+// hands them to List like any other ticket, so they are cards.
 func (m *Model) refMarks() {
 	m.unsent = map[string]bool{}
-	m.refOnly = 0
 	if m.refSync == nil || m.refSync.Usable() != nil {
 		return
 	}
 	if entries, err := m.refSync.Box.List(); err == nil {
 		for _, e := range entries {
 			m.unsent[e.ID] = true
-		}
-	}
-	ids, err := m.refSync.Repo.List()
-	if err != nil {
-		return
-	}
-	for _, id := range ids {
-		if _, err := m.store.Load(id); err != nil {
-			// On a ref, in no branch here. Counted rather than shown as a
-			// card: a card the board cannot let you act on needs a read-only
-			// passthrough path of its own, and 'jaira fetch' already lists
-			// these in full.
-			m.refOnly++
 		}
 	}
 }

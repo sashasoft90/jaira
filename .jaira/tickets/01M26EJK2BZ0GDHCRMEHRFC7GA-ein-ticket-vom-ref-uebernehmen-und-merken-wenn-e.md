@@ -29,7 +29,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-10T20:01:34Z
-updated-at: 2026-09-10T20:49:22Z
+updated-at: 2026-09-10T20:55:50Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-373879
 claimed-at: 2026-09-10T20:17:44Z
@@ -40,7 +40,8 @@ assignee: Alexander Sacharov
 
 ## Definition of Done
 
-- [ ] 'jaira pull <id>' holt ein Ticket vom Ref als Datei nach .jaira/tickets/ und setzt in derselben Operation den Uebernehmer als assignee, mit CAS - verliert der Aufrufer das Rennen, wird keine Datei angelegt und die Meldung nennt, wer schneller war; 'jaira create' legt auf einem Board mit Remote keine lokale Datei mehr an, sondern nur das Ref, und sagt das; 'jaira fetch' bleibt reines Lesen; ein Board ohne Remote verhaelt sich unveraendert wie heute, und diese Verzweigung steht an genau einer Stelle im Code; ein Ticket, dessen Ref verschwunden ist, waehrend die Datei noch unter tickets/ liegt, wird von fetch und validate als 'hat die Tafel verlassen' gemeldet und nie still verschoben; core/ticket erkennt zwei Dateien mit derselben Id auch ueber tickets/, logbook/ und archive/ hinweg; die README-Zeile ueber 'clone and see the same board' ist auf den neuen Ablauf korrigiert
+- [x] 'jaira pull <id>' holt ein Ticket vom Ref als Datei nach .jaira/tickets/ und setzt in derselben Operation den Uebernehmer als assignee, mit CAS - verliert der Aufrufer das Rennen, wird keine Datei angelegt und die Meldung nennt, wer schneller war; 'jaira create' legt auf einem Board mit Remote keine lokale Datei mehr an, sondern nur das Ref, und sagt das; 'jaira fetch' bleibt reines Lesen; ein Board ohne Remote verhaelt sich unveraendert wie heute, und diese Verzweigung steht an genau einer Stelle im Code; ein Ticket, dessen Ref verschwunden ist, waehrend die Datei noch unter tickets/ liegt, wird von fetch und validate als 'hat die Tafel verlassen' gemeldet und nie still verschoben; core/ticket erkennt zwei Dateien mit derselben Id auch ueber tickets/, logbook/ und archive/ hinweg; die README-Zeile ueber 'clone and see the same board' ist auf den neuen Ablauf korrigiert
+  proof: jaira pull/release/fetch, list+next+show sehen Ref-Tickets ([pull it], on-ref-only), Schreiben verweigert mit exit 3; core/ticket offBoardDuplicates fuer tickets+logbook+archive; refsync.Departed in fetch und validate; README mit Sequenzdiagramm; Board ohne Remote unveraendert (fileOnRefOnly ist die einzige Verzweigung). Tests: core/refsync (11), core/ticket (2 neue), Smoke ueber alle Kommandos
 
 ## Options
 
@@ -73,7 +74,8 @@ assignee: Alexander Sacharov
   proof: README.md: 'a teammate clones, runs jaira fetch, and sees the same board' - an beiden Stellen (Einleitung und Start-Abschnitt) korrigiert; pull und release in der Kommandoliste
 - [x] Board: ein Ticket, das mir zugewiesen ist und noch nicht hier liegt, ist eine eigene Karte mit 'pull' statt nur eine Zahl in der Hinweiszeile - ein zugewiesenes Ticket ist der Fall, fuer den das alles existiert
   proof: internal/cli/tickets.go: Zeilenmarker [pull it]; ticketJSON traegt on-ref-only; alle Lesekommandos gegen ein Board mit ausschliesslich Ref-Tickets durchgeprueft
-- [ ] --steal sagt laut, von wem genommen wurde, und schreibt es in eine Notiz am Ticket
+- [x] --steal sagt laut, von wem genommen wurde, und schreibt es in eine Notiz am Ticket
+  proof: core/refsync Pulled.TakenFrom + ticket.AppendNote (aus internal/cli/resume.go herausgezogen, jetzt eine Stelle fuer beide Aufrufer); internal/cli/pull.go sagt es laut; TestStealingRecordsWhoItWasTakenFrom
 
 ## Progress
 - **2026-09-10 20:14 · Alexander Sacharov** — Reihenfolge, in der das gebaut werden muss: erst pull (dieses Ticket), dann darf create aufhoeren, lokal zu schreiben. Umgekehrt gaebe es einen Zustand, in dem ein Ticket auf einem Ref liegt und niemand es holen kann.

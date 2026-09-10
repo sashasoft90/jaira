@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -379,6 +380,17 @@ func (y *Syncer) Incoming() ([]Arrival, error) {
 		a.Local = y.hasLocal(id)
 		out = append(out, a)
 	}
+	// A ref that has vanished while a file for it is still here is unfinished
+	// business, not history: it is kept in the seen record so it can still be
+	// reported afterwards. Forgetting it here is what made the report silent —
+	// the fetch that should have raised it had already overwritten the only
+	// evidence.
+	local := y.localIDs()
+	for id, sha := range known {
+		if _, stillThere := next[id]; !stillThere && local[id] {
+			next[id] = sha
+		}
+	}
 	y.saveSeen(next)
 	return out, nil
 }
@@ -569,6 +581,11 @@ type Pulled struct {
 	// Winner is set when the ref refused the take-over: somebody else got
 	// there first, and no file was written.
 	Winner *Winner `json:"winner,omitempty"`
+
+	// TakenFrom names who the ticket was taken from, when it was taken with
+	// --steal. A silent steal would leave the other person's board saying the
+	// ticket is theirs, with nothing anywhere saying why it stopped being.
+	TakenFrom string `json:"taken-from,omitempty"`
 }
 
 // Pull takes a ticket that lives on its ref and makes it this clone's to work
@@ -621,12 +638,23 @@ func (y *Syncer) Pull(id string, steal bool) (*Pulled, error) {
 	if err != nil {
 		return nil, fmt.Errorf("refsync: the ref for %s does not carry a ticket: %w", id, err)
 	}
-	if holder, _, _ := d.Scalar(ticket.FieldAssignee); strings.TrimSpace(holder) != "" && !y.isMe(holder) && !steal {
+	holder, _, _ := d.Scalar(ticket.FieldAssignee)
+	if strings.TrimSpace(holder) != "" && !y.isMe(holder) && !steal {
 		out := &Pulled{ID: id}
 		if w, wErr := y.winner(id); wErr == nil {
 			out.Winner = w
 		}
 		return out, fmt.Errorf("%w: %s has it", ErrTaken, holder)
+	}
+	stolenFrom := ""
+	if h := strings.TrimSpace(holder); h != "" && !y.isMe(h) {
+		// Taken with --steal. Recorded on the ticket itself, because the ref is
+		// the only thing the other person will fetch, and a note there is the
+		// only place they can read why the ticket left them.
+		stolenFrom = h
+		if err := ticket.AppendNote(d, fmt.Sprintf("%s took this ticket over from %s", y.Actor, h), time.Now(), y.Actor); err != nil {
+			return nil, err
+		}
 	}
 	if err := d.SetScalar(ticket.FieldAssignee, y.Actor); err != nil {
 		return nil, err
@@ -661,7 +689,7 @@ func (y *Syncer) Pull(id string, steal bool) (*Pulled, error) {
 	if err := ticket.WriteAtomic(path, taken); err != nil {
 		return nil, err
 	}
-	return &Pulled{ID: id, Title: title, Path: path}, nil
+	return &Pulled{ID: id, Title: title, Path: path, TakenFrom: stolenFrom}, nil
 }
 
 // Released reports what a release did.
@@ -789,4 +817,70 @@ func (y *Syncer) Extra(have map[string]bool) ([]*ticket.Ticket, error) {
 		out = append(out, t)
 	}
 	return out, nil
+}
+
+// Departure is a ticket whose ref is gone while the file is still here.
+type Departure struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	Path  string `json:"path"`
+}
+
+// Departed reports tickets somebody else has taken off the board while a file
+// for them is still sitting here.
+//
+// The signal is a ref that this clone has seen before and cannot see now.
+// Deleting the ref is exactly what logging or archiving a ticket does, so its
+// absence is the board saying "this is finished elsewhere". Without noticing
+// it, the next merge keeps both paths and the ticket lives twice — closed for
+// its owner, open here.
+//
+// Nothing is moved. Which of the two is right is a question for the person, and
+// a tool that guessed would sometimes reopen finished work; the caller reports
+// this and names the command that settles it.
+func (y *Syncer) Departed() []Departure {
+	if y == nil || y.Store == nil || y.Usable() != nil {
+		return nil
+	}
+	seen := y.loadSeen()
+	if len(seen) == 0 {
+		return nil
+	}
+	present := map[string]bool{}
+	if ids, err := y.Repo.List(); err == nil {
+		for _, id := range ids {
+			present[id] = true
+		}
+	}
+	var out []Departure
+	for id := range seen {
+		if present[id] {
+			continue
+		}
+		path, ok := y.localPath(id)
+		if !ok {
+			continue // gone from the refs and not here either: nothing to say
+		}
+		d := Departure{ID: id, Path: path}
+		if t, err := y.Store.Load(id); err == nil {
+			d.Title = t.Title
+		}
+		out = append(out, d)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
+}
+
+// ForgetDeparted drops a ticket from the seen record, so it stops being
+// reported once the person has dealt with it.
+func (y *Syncer) ForgetDeparted(id string) {
+	if y == nil {
+		return
+	}
+	seen := y.loadSeen()
+	if _, ok := seen[id]; !ok {
+		return
+	}
+	delete(seen, id)
+	y.saveSeen(seen)
 }
