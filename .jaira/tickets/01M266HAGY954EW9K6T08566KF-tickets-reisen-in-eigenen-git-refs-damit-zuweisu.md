@@ -13,7 +13,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-10T17:41:04Z
-updated-at: 2026-09-10T18:51:10Z
+updated-at: 2026-09-10T19:05:06Z
 assignee: Alexander Sacharov
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-244146
@@ -141,16 +141,18 @@ Remote, das ohnehin da ist. Wer jaira nicht benutzt, sieht von alldem nichts.
 - [ ] Schreibpfad anbinden: der Push haengt an Store.Mutate + Store.Create, nicht an create/claim/move/note/dod einzeln (alle 20+ Aufrufstellen laufen durch diese zwei)
 - [ ] Bei Ablehnung: Ticket aus dem Ref neu einlesen und dem Aufrufer melden, wer schneller war (Assignee + updated-at aus dem fremden Ref)
 - [ ] Lesepfad: fetch von +refs/jaira/tickets/*:refs/jaira/tickets/* plus git ls-remote als billiger Ueberblick
-- [ ] Board: Ref-Tickets, die in keinem Branch liegen, in die Ansicht mischen und als solche kennzeichnen
+- [ ] Board: eine Geschichte pro Ticket - lokale Datei als Basis, Ref via core/merge.Merge dazu (base = Blob des Parent-Commits), plus die Marker ref-only und unsent an der Karte
 - [ ] Settings-Datei in ~/.jaira/ anlegen (existiert heute nicht, nur projects.json und state/) - traegt den Abschalter fuer die Benachrichtigung
 - [ ] Desktop-Benachrichtigung bei Zuweisung an mich: notify-send / osascript per os/exec, kein neues Modul, faellt still aus wenn nichts da ist
 - [ ] Optionaler Hook bei move/claim: jaira ruft ein Skript auf und bringt keine Abhaengigkeit mit
 - [ ] logbook und archive loeschen das Ref (git push origin :refs/jaira/tickets/<id>)
 - [ ] Tests: Bare-Repo plus zwei Klone in t.TempDir(), echtes Rennen, Uebernahme, Merge zweier Branches am selben Ticket
-- [ ] Outbox unter ~/.jaira/state/<worktree>/: ein noch nicht gepushter Schreibvorgang pro Ticket, mit dem gelesenen Sha als Lease
+- [x] Outbox unter ~/.jaira/state/<worktree>/: ein noch nicht gepushter Schreibvorgang pro Ticket, mit dem gelesenen Sha als Lease
+  proof: core/outbox/outbox.go (Queue/Pending/List/Drop/Flush), 8 Tests in core/outbox/outbox_test.go, darunter TestAnOfflineWriteArrivesWhenTheNetworkIsBack gegen echtes git
 - [ ] Outbox abarbeiten beim naechsten Kommando, das Netz hat; abgelehnter nachgeholter Push meldet dem Benutzer, wer schneller war
 - [ ] Board-Remote konfigurierbar (Default origin) - die Settings-Datei traegt es neben dem Abschalter der Benachrichtigung
 - [ ] README: wozu die Refs da sind, welche Befehle sie schreiben und lesen, wie das Board-Remote konfiguriert wird, und die Fork-Grenze ausdruecklich (kein Push-Recht = Ticketdatei im Branch plus PR)
+- [ ] TUI: Fetch nur im Hintergrund (tea.Cmd + Program.Send), gezeichnet wird aus lokalen Dateien und bereits gefetchten Refs - nie Netz in View/Update
 
 ## Progress
 
@@ -201,6 +203,34 @@ Zwei Dinge, die beim Bauen aufgefallen sind und nicht im Plan standen:
 - Der Push setzt GIT_TERMINAL_PROMPT=0 und gitref schreibt Author/Committer selbst in die Env. Sonst haengt ein Push, der im Hintergrund eines fremden Kommandos laeuft, an einem Credential-Prompt, und auf einer Maschine ohne user.name (CI, frischer Container) scheitert commit-tree mit 'please tell me who you are'.
 
 Lokales Ref wird erst nach dem akzeptierten Push bewegt (update-ref danach), damit der naechste Lease immer ein Sha ist, das das Remote wirklich gesehen hat. Belegt am Ende von TestUnreachableRemoteIsOfflineNotARace.
+- **2026-09-10 19:00 · Alexander Sacharov** — Entschieden (Alexander + ich, 10.09.2026): das Board zeigt eine Geschichte pro Ticket, nicht zwei. Zwei Quellen ja, aber sie werden unter der Oberflaeche zusammengefuehrt.
+
+Warum nicht nur das Ref: es faellt in vier Faellen aus, in denen das Board trotzdem stimmen muss - git ist gar nicht Voraussetzung (jaira laeuft in einem Verzeichnis, das kein Repo ist), offline liegt ein noch nicht gesendeter Schreibvorgang in der Outbox und muss sofort sichtbar sein, handverlesene Aenderungen passieren an der Datei im Arbeitsbaum und nicht am Ref, und auf einem noch nicht geteilten Board (init gitignored .jaira/) gibt es kein einziges Ref. Die lokale Datei ist damit die Basis, das Ref die zweite Quelle.
+
+Warum nicht zwei Spalten im TUI: das laesst den Menschen bei jedem Blick mit den Augen mergen - genau die Arbeit, die core/merge/merge.go:80 schon macht (status nach Fortschritt in der Lane-Kette, Listen als Union, Prosa als einziger echter Konflikt).
+
+Der Fund, der es billig macht: weil der Ref-Commit den geleasten Sha als Parent hat, liefert das Ref die Merge-Basis gratis. Der Blob im Parent-Commit ist genau 'der Stand, von dem ich ausgegangen bin'. Damit ist es ein echter Drei-Wege-Merge und keine Zwei-Wege-Raterei nach Timestamp:
+
+  base   = Blob aus dem Parent-Commit des Refs
+  ours   = .jaira/tickets/<id>.md
+  theirs = Blob aus dem Ref
+
+Kein neues Vorrangregelwerk. Genau das ist auch der zweite Grund, den Parent zu behalten (siehe die Abweichungs-Note oben).
+
+Was der Mensch stattdessen sieht: zwei Zustandsmarker an der Karte, keine zwei Quellen - 'ref-only' (das Ticket liegt in keinem Branch, jemand hat es mir zugewiesen; der Fall, fuer den dieses Ticket existiert) und 'unsent' (die Outbox haelt eine Schreibung). Ein Prosakonflikt geht den bestehenden Weg: conflict-theirs-<field> plus jaira resolve, kein dritter Mechanismus.
+
+Harte Anforderung ans TUI: Fetch ist Netz und hat in View/Update nichts zu suchen. Hintergrund per tea.Cmd und Program.Send; gezeichnet wird aus den lokalen Dateien und den bereits gefetchten Refs, die danach lokal und damit offline billig lesbar sind.
+- **2026-09-10 19:05 · Alexander Sacharov** — Outbox gebaut, drei Regeln, die beim Bauen entschieden wurden und nicht offensichtlich sind:
+
+1. Ein zweiter lokaler Schreibvorgang, waehrend der erste noch liegt, ersetzt den Inhalt, behaelt aber den Lease des ersten. Die Frage, die das Remote beantwortet, ist 'hat seit meinem letzten Lesen jemand geschrieben' - der eigene ungesendete Schreibvorgang ist keine Antwort darauf. Nimmt man den neueren Lease, vergleicht das Remote gegen ein Sha, das es nie gesehen hat, und der Push wird aus dem falschen Grund abgelehnt. Belegt in TestSupersedingAWriteKeepsTheConfirmedLease. QueuedAt bleibt dabei ebenfalls das des ersten - das Ticket wartet seit dann, nicht seit der letzten Aenderung.
+
+2. Der Eintrag traegt die ganze Ticketdatei, keinen Patch. Ein wiedergespielter Patch koennte sauber auf einen Stand passen, den nie jemand geprueft hat. Deshalb ist Ersetzen auch nicht verlustbehaftet: die neueren Bytes enthalten schon alles, was die aelteren sagten.
+
+3. Flush bricht beim ersten unerreichbaren Remote ab, laeuft aber bei einem verlorenen Rennen weiter. Netz ist eine Eigenschaft der Maschine, nicht des Tickets: hat ein Push bewiesen, dass es keine Route gibt, wartet jeder weitere in denselben Timeout, und ein Kommando, das der Benutzer aus einem voellig anderen Grund gestartet hat, haengt so lange wie die Queue ist. Ein verlorenes Rennen betrifft dagegen ein Ticket, das naechste kann durchgehen.
+
+Ein verlorenes Rennen loescht seinen Eintrag: erneut senden wuerde nur erneut verlieren, und die lokale Datei liegt weiter da - das Board fuehrt das Ref per core/merge dazu. Ein unklassifizierter git-Fehler behaelt den Eintrag, denn Wegwerfen bei einem Fehler, den niemand eingeordnet hat, ist der einzige Ausgang, der wirklich Arbeit verliert.
+
+Was die Outbox nicht macht: sie sperrt nicht. Zwei Sessions, die gleichzeitig flushen, pushen beide, eine verliert das Rennen und raeumt ihren Eintrag - das korrigiert sich selbst. Eine Sperre waere hier teurer als das Problem.
 
 ## Definition of Done
 
