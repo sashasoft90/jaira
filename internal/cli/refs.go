@@ -47,6 +47,44 @@ func fireHook(name string, s *ticket.Store, t *ticket.Ticket) {
 	})
 }
 
+// fileOnRefOnly sends a freshly created ticket to its ref and, if the remote
+// accepted it, takes the local file away again.
+//
+// This is the one place the two storage modes are decided, and it is decided
+// once: a board with a remote keeps an unworked ticket on its ref only, a board
+// without one keeps the file, exactly as before. Every other command reads
+// whichever is there and does not need to know which mode it is in.
+//
+// Why the file goes: while nobody is working a ticket, a file in somebody's
+// checkout is a copy that a merge can duplicate and that hides who the ticket
+// belongs to. 'jaira pull' is what brings it back, for exactly one clone.
+//
+// A ticket that could not be sent keeps its file. It is then correct here,
+// carries the 'unsent' marker, and goes out with the next command — losing the
+// file for a write that never left the machine would lose the ticket.
+func fileOnRefOnly(s *ticket.Store, t *ticket.Ticket) (onRefOnly bool) {
+	if refs.Usable() != nil || t == nil {
+		return false
+	}
+	reports, err := refs.Flush()
+	if err != nil {
+		return false
+	}
+	for _, r := range reports {
+		if r.ID != t.ID {
+			continue
+		}
+		if r.Outcome != outbox.Sent {
+			return false
+		}
+		if err := os.Remove(t.Path); err != nil {
+			return false
+		}
+		return true
+	}
+	return false
+}
+
 // flushRefs sends what this command queued, and is called once after the
 // command has finished — including after it failed, because a ticket the
 // command did manage to write is a ticket the team should see.

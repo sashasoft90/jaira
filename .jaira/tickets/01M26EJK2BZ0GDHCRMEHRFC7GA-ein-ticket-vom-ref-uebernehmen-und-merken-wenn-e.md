@@ -29,7 +29,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-10T20:01:34Z
-updated-at: 2026-09-10T20:36:27Z
+updated-at: 2026-09-10T20:40:24Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-373879
 claimed-at: 2026-09-10T20:17:44Z
@@ -63,8 +63,10 @@ assignee: Alexander Sacharov
   proof: core/refsync/refsync.go Pull + internal/cli/pull.go; Tests TestOnlyOneCloneCanPullATicket, TestPullingATicketYouAlreadyHaveIsANoOp; Smoke gegen zwei Klone
 - [x] Tests mit zwei Klonen: berk pullt und hat die Datei, ada verliert und hat KEINE Datei, doppeltes pull ist No-op
   proof: core/refsync/refsync.go Pull + internal/cli/pull.go; Tests TestOnlyOneCloneCanPullATicket, TestPullingATicketYouAlreadyHaveIsANoOp; Smoke gegen zwei Klone
-- [~] README: eigener Abschnitt zum Ablauf mit einem mermaid-Sequenzdiagramm, das zeigt, wie zwei Leute ein Ticket austauschen (create nur aufs Ref, fetch liest, pull gewinnt per CAS, Verlierer bekommt die Meldung) - mermaid, weil GitHub es selbst zeichnet und es im Gegensatz zu einem png von Hand aenderbar bleibt
-- [ ] README: die Zeile 'clone and see the same board' auf den neuen Ablauf korrigieren, statt sie still falsch werden zu lassen
+- [x] README: eigener Abschnitt zum Ablauf mit einem mermaid-Sequenzdiagramm, das zeigt, wie zwei Leute ein Ticket austauschen (create nur aufs Ref, fetch liest, pull gewinnt per CAS, Verlierer bekommt die Meldung) - mermaid, weil GitHub es selbst zeichnet und es im Gegensatz zu einem png von Hand aenderbar bleibt
+  proof: core/refsync Release + internal/cli/release.go; internal/cli/refs.go fileOnRefOnly (die einzige Stelle, an der die zwei Modi entschieden werden); Tests TestReleaseHandsTheTicketBack, TestAnAssignedTicketIsReservedForItsAssignee; Smoke: create=0 Dateien, pull, release, Fremd-pull
+- [x] README: die Zeile 'clone and see the same board' auf den neuen Ablauf korrigieren, statt sie still falsch werden zu lassen
+  proof: core/refsync Release + internal/cli/release.go; internal/cli/refs.go fileOnRefOnly (die einzige Stelle, an der die zwei Modi entschieden werden); Tests TestReleaseHandsTheTicketBack, TestAnAssignedTicketIsReservedForItsAssignee; Smoke: create=0 Dateien, pull, release, Fremd-pull
 - [ ] jaira release <id>: den assignee auf dem Ref per CAS loeschen und die lokale Datei entfernen - danach kann es jeder holen. Ohne das ist eine Zuweisung eine Reservierung, die niemand zurueckgeben kann
 - [ ] Reservierung dokumentieren: 'create --assignee berk' materialisiert bei berk NICHTS, es reserviert nur; berk sieht 'neu fuer dich' und holt es selbst. In welchem Branch er arbeitet, ist nicht Sache des Zuweisenden
 - [ ] Board: ein Ticket, das mir zugewiesen ist und noch nicht hier liegt, ist eine eigene Karte mit 'pull' statt nur eine Zahl in der Hinweiszeile - ein zugewiesenes Ticket ist der Fall, fuer den das alles existiert
@@ -85,3 +87,15 @@ Reihenfolge im Code ist die halbe Mechanik: erst der Push, dann die Datei. Ander
 pull ist die eine Operation, die synchron schreibt und nicht ueber die Outbox geht. Das ist keine Ausnahme von der Offline-Regel, sondern deren Folge: ohne Route zum Remote gibt es kein Ref zu lesen, also nichts zu uebernehmen.
 
 Handprobe mit dem Binary: berk pullt und hat die Datei; ada wird abgelehnt ('berk has it, it is in backlog', exit 3) und hat keine; ein zweiter pull bei berk ist ein No-op; --steal nimmt es trotzdem.
+- **2026-09-10 20:38 · Alexander Sacharov** — Preis 1 entschieden (Alexander): 'Klonen und die Tafel sehen' wird zu zwei Schritten, 'git clone && jaira fetch', und danach ist es fuer alle gleich. Das ist die ganze Loesung - keine Sonderbehandlung, keine Materialisierung beim Clone, nur eine Zeile mehr in der Anleitung. Die README-Zeile wird entsprechend geaendert, nicht weggelassen.
+
+Damit bleibt von den drei Preisen im Kontext nur noch einer, der Arbeit macht: die zwei Modi (mit Remote das Ref, ohne Remote die Datei). Preis 2 (Backlog nur auf dem Remote) traegt PTQ3XT, alle drei Tage im Hintergrund.
+- **2026-09-10 20:40 · Alexander Sacharov** — create und release stehen. Die Verzweigung der zwei Modi liegt an genau einer Stelle: cli.fileOnRefOnly. Ein Board mit Remote schickt das frisch angelegte Ticket aufs Ref und nimmt die lokale Datei wieder weg; ein Board ohne Remote behaelt sie, unveraendert wie bisher. Jedes andere Kommando liest, was da ist, und muss nicht wissen, in welchem Modus es laeuft.
+
+Warum die Datei weggeht, waehrend niemand daran arbeitet: eine Datei in irgendeinem Checkout ist eine Kopie, die ein Merge doppeln kann, und sie verdeckt, wem das Ticket gehoert. 'jaira pull' holt sie zurueck, fuer genau einen Klon.
+
+Eine Ausnahme, die bleiben muss: konnte das Ticket nicht gesendet werden, BLEIBT die Datei hier. Sie ist dann hier korrekt, traegt den unsent-Marker und geht mit dem naechsten Kommando raus. Die Datei fuer eine Schreibung wegzunehmen, die die Maschine nie verlassen hat, waere der eine Weg, ein Ticket wirklich zu verlieren.
+
+release loescht den assignee auf dem Ref per CAS und entfernt danach die Datei - in dieser Reihenfolge, damit ein Fehlschlag das Ticket noch dir laesst und nicht 'niemandem, aber noch auf deiner Platte'. Ein fremdes Ticket wird abgelehnt und nennt den Halter; --force fuer den Fall, dass die Person nicht zurueckkommt.
+
+Handprobe, Ablauf komplett: ada legt zwei Tickets an (0 Dateien bei ihr), berk fetcht und sieht beide als 'ref-only', zieht sein zugewiesenes, gibt es zurueck (Datei weg), danach kann ada es ziehen. Ein Board ohne Remote verhaelt sich unveraendert.

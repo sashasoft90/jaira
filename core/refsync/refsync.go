@@ -626,3 +626,76 @@ func (y *Syncer) Pull(id string, steal bool) (*Pulled, error) {
 	}
 	return &Pulled{ID: id, Title: title, Path: path}, nil
 }
+
+// Released reports what a release did.
+type Released struct {
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	Removed string `json:"removed,omitempty"`
+
+	// NotYours is set when the ticket is not this user's to release. Handing
+	// somebody else's work back is not a thing one person decides for another.
+	NotYours *Winner `json:"not-yours,omitempty"`
+}
+
+// Release hands a ticket back: it clears the assignee on the ref and removes
+// the file from this clone, in that order.
+//
+// It is the other half of Pull, and without it an assignment is a reservation
+// nobody can give back. The order matters for the same reason: the ref is
+// cleared first, so a failure leaves the ticket still yours rather than
+// unowned-but-still-on-your-disk.
+//
+// The local file is removed rather than kept, because keeping it would put a
+// second copy of a ticket somebody else may now pull into a branch — the
+// duplicate this whole design exists to make impossible. Nothing is lost: the
+// ref carries the bytes, and the work already committed stays in the history.
+func (y *Syncer) Release(id string, force bool) (*Released, error) {
+	if y == nil || y.Store == nil {
+		return nil, errors.New("refsync: no board here")
+	}
+	if err := y.Usable(); err != nil {
+		return nil, err
+	}
+	if err := y.Repo.Fetch(); err != nil {
+		return nil, err
+	}
+	content, lease, err := y.Repo.Read(id)
+	if err != nil {
+		return nil, err
+	}
+	d, err := ticket.ParseDoc(content)
+	if err != nil {
+		return nil, fmt.Errorf("refsync: the ref for %s does not carry a ticket: %w", id, err)
+	}
+	holder, _, _ := d.Scalar(ticket.FieldAssignee)
+	if strings.TrimSpace(holder) != "" && !y.isMe(holder) && !force {
+		out := &Released{ID: id}
+		if w, wErr := y.winner(id); wErr == nil {
+			out.NotYours = w
+		}
+		return out, fmt.Errorf("%w: %s has it", ErrTaken, holder)
+	}
+	if err := d.SetScalar(ticket.FieldAssignee, ""); err != nil {
+		return nil, err
+	}
+	if err := ticket.Touch(d, time.Now()); err != nil {
+		return nil, err
+	}
+	if err := ticket.TouchBy(d, y.Actor); err != nil {
+		return nil, err
+	}
+	if _, err := y.Repo.Write(id, d.Bytes(), lease); err != nil {
+		return nil, err
+	}
+
+	title, _, _ := d.Scalar(ticket.FieldTitle)
+	out := &Released{ID: id, Title: title}
+	if t, err := y.Store.Load(id); err == nil {
+		if err := os.Remove(t.Path); err != nil && !os.IsNotExist(err) {
+			return out, err
+		}
+		out.Removed = t.Path
+	}
+	return out, nil
+}

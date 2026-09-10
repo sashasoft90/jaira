@@ -543,3 +543,108 @@ func withAssignee(doc, who string) string {
 	}
 	return strings.Join(out, "\n")
 }
+
+// fileOnRef captures a ticket the way a board with a remote does it: the ticket
+// goes to its ref and the local file goes away again, so it exists nowhere
+// until somebody pulls it. This mirrors what the create command does in
+// production (see cli.fileOnRefOnly) and is what the pull rules are about.
+func fileOnRef(t *testing.T, s side, title string) string {
+	t.Helper()
+	id := create(t, s, title)
+	if _, err := s.syncer.Flush(); err != nil {
+		t.Fatalf("flush: %v", err)
+	}
+	tk, err := s.store.Load(id)
+	if err != nil {
+		t.Fatalf("load after create: %v", err)
+	}
+	if err := os.Remove(tk.Path); err != nil {
+		t.Fatalf("removing the local file: %v", err)
+	}
+	return id
+}
+
+// The other half of pull: while a ticket names somebody, nobody else can take
+// it, and only handing it back opens it up again.
+func TestReleaseHandsTheTicketBack(t *testing.T) {
+	ada, berk, _ := twoSides(t)
+	id := fileOnRef(t, ada, "hand it back")
+	if _, err := berk.syncer.Pull(id, false); err != nil {
+		t.Fatalf("berk pull: %v", err)
+	}
+
+	// Ada cannot release berk's ticket for him.
+	if _, err := ada.syncer.Release(id, false); !errors.Is(err, refsync.ErrTaken) {
+		t.Fatalf("ada released somebody else's ticket: %v", err)
+	}
+
+	got, err := berk.syncer.Release(id, false)
+	if err != nil {
+		t.Fatalf("berk release: %v", err)
+	}
+	if got.Removed == "" {
+		t.Error("the file was left behind, which is the duplicate this rules out")
+	}
+	if _, err := berk.store.Load(id); err == nil {
+		t.Error("berk still has the ticket file after releasing it")
+	}
+
+	// And now it is anybody's again.
+	if err := ada.syncer.Repo.Fetch(); err != nil {
+		t.Fatalf("ada fetch: %v", err)
+	}
+	taken, err := ada.syncer.Pull(id, false)
+	if err != nil {
+		t.Fatalf("ada could not pull a released ticket: %v", err)
+	}
+	if taken.Winner != nil || taken.AlreadyHere {
+		t.Errorf("ada's pull of a released ticket: %+v", taken)
+	}
+	tk, err := ada.store.Load(id)
+	if err != nil {
+		t.Fatalf("ada has no file: %v", err)
+	}
+	if tk.Assignee != "ada" {
+		t.Errorf("assignee is %q after ada pulled it", tk.Assignee)
+	}
+}
+
+// Assigning a ticket to somebody reserves it for them: they must still pull it
+// themselves, and until they do — or hand it back — nobody else can.
+func TestAnAssignedTicketIsReservedForItsAssignee(t *testing.T) {
+	ada, berk, _ := twoSides(t)
+	id := create(t, ada, "for berk")
+	if _, err := ada.store.Mutate(id, func(tk *ticket.Ticket) error {
+		return tk.Doc().SetScalar(ticket.FieldAssignee, "berk")
+	}); err != nil {
+		t.Fatalf("assign: %v", err)
+	}
+	if _, err := ada.syncer.Flush(); err != nil {
+		t.Fatalf("flush: %v", err)
+	}
+	// Assigning it does not make it hers to hold: the file goes to the ref and
+	// away from here, exactly as capture does on a board with a remote.
+	assigned, err := ada.store.Load(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(assigned.Path); err != nil {
+		t.Fatal(err)
+	}
+
+	// Ada, who wrote it, cannot take it back by pulling.
+	if _, err := ada.syncer.Pull(id, false); !errors.Is(err, refsync.ErrTaken) {
+		t.Fatalf("the assigner pulled a ticket they had given away: %v", err)
+	}
+	// Berk can, and only then does it exist on his disk.
+	if _, err := berk.store.Load(id); err == nil {
+		t.Fatal("the ticket materialised at berk without him pulling it")
+	}
+	got, err := berk.syncer.Pull(id, false)
+	if err != nil {
+		t.Fatalf("berk could not pull the ticket assigned to him: %v", err)
+	}
+	if got.Winner != nil {
+		t.Errorf("berk was refused his own ticket: %+v", got.Winner)
+	}
+}

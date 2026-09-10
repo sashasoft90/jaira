@@ -261,8 +261,14 @@ already know it is yours; --assignee wins over it.`,
 			if err != nil {
 				return err
 			}
+			// On a board with a remote the ticket travels on its ref and the
+			// file stays away until somebody pulls it into work. See
+			// fileOnRefOnly for why.
+			onRefOnly := fileOnRefOnly(s, t)
 			if g.jsonOut {
-				return emit(cmd.OutOrStdout(), ticketJSON(t, lanes))
+				payload := ticketJSON(t, lanes)
+				payload["on-ref-only"] = onRefOnly
+				return emit(cmd.OutOrStdout(), payload)
 			}
 			for _, n := range tagNotes {
 				fmt.Fprintln(cmd.OutOrStdout(), n)
@@ -271,6 +277,9 @@ already know it is yours; --assignee wins over it.`,
 			if len(added) > 0 {
 				fmt.Fprintf(cmd.OutOrStdout(), "New on this board: %s. Run 'jaira tags' before naming a tag, and reuse one for the same subject.\n",
 					strings.Join(added, ", "))
+			}
+			if onRefOnly {
+				fmt.Fprintf(cmd.OutOrStdout(), "On its ref, not on your disk: whoever works it runs 'jaira pull %s'\n", ticket.Handle(t.ID))
 			}
 			if !gate.Ready(t) {
 				missing := gate.Violations(nil)
