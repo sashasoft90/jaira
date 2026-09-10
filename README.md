@@ -400,6 +400,63 @@ A board with no remote behaves exactly as it always did: the file is the board.
 That branch is decided in one place, so no command has to know which mode it is
 in.
 
+## The backup branch, and when a ref dies
+
+A ticket nobody is working lives only on its ref, so an untouched backlog lives
+only on the remote. Every participant's clone holds the refs it has fetched, so
+the board survives any one machine — but somebody cloning for the first time has
+no refs at all. For them there is a branch:
+
+```
+jaira/board            parentless, never merged, one commit per change
+└── board/<id>.md      the same ticket files, at a path of their own
+```
+
+It is built with git plumbing and never checked out, so a run cannot disturb
+whatever you are in the middle of, and it is rebuilt from the current set of
+refs each time — so a ticket that has gone is simply not in the next snapshot
+and stays readable in the previous ones. `git log jaira/board` is the board's
+history and `git diff` between two snapshots says what moved.
+
+```bash
+jaira snapshot                # normally nobody runs this
+```
+
+It happens by itself, in a detached background process, when the last snapshot
+is more than three days old — never on the command path, so nothing you type
+waits for it. Three days is not thrift: the working state is always on the refs
+and every clone has them, so this is the backup for the slow cases only. The
+files live under `board/`, not `.jaira/tickets/`, because at the same path the
+first accidental merge of this branch would collide with every working ticket at
+once.
+
+**A ref is removed only once its ticket has arrived somewhere everybody can
+see.** Filing a ticket away — `jaira logbook`, `jaira archive` — writes its
+final state to the ref and leaves it standing. At that moment the ticket file is
+only in your branch, and taking the shared copy down too would hide the ticket
+from everybody for as long as a review takes; somebody would notice the same
+problem and write it down a second time.
+
+The ref goes in the snapshot run, immediately after the write, for tickets that
+are filed away in a landing branch. That order is the point: at the moment of
+deletion the ticket is in the snapshot *and* in the branch it landed in, so
+there is nothing left to lose.
+
+```json
+{ "landing-branches": ["main", "develop", "release/*"] }
+```
+
+A list rather than one "main branch", because there is no answer to what the
+important branch is called. With nothing configured, the remote's own HEAD is
+used; if even that cannot be resolved, **nothing is ever removed** — a ref left
+standing costs nothing, one removed by mistake takes away exactly the visibility
+this is for.
+
+A branch that never gets merged would otherwise keep its ref for ever, so
+`jaira fetch` and `jaira validate` name any ticket that was finished here and
+has not arrived after a week. `jaira snapshot --drop <id>` is the way out, and
+it is deliberately a person's decision.
+
 ## Concurrency
 
 Two people moving the same ticket both rewrite the same `status:` line. Line-based
@@ -514,6 +571,7 @@ jaira next                 the next actionable ticket
 jaira fetch                fetch the tickets travelling on their own git refs
 jaira pull <id>            take a ticket over and put it on your disk
 jaira release <id>         hand a ticket back so somebody else can take it
+jaira snapshot             write the board's backup branch and clear landed refs
 jaira claim <id>           take a 30-minute lease on a ticket
 jaira lanes                installed lanes
 jaira checkpoint           record what this session is doing

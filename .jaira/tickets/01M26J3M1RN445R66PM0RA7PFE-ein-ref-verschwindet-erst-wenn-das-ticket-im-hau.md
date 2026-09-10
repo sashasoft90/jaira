@@ -1,8 +1,8 @@
 ---
 id: 01M26J3M1RN445R66PM0RA7PFE
 title: "Ein Ref verschwindet erst, wenn das Ticket im Hauptbranch angekommen ist"
-status: backlog
-ready: false
+status: in-progress
+ready: true
 creator: Alexander Sacharov
 goal: "Zwischen 'ins Logbuch gelegt' und 'im Hauptbranch angekommen' bleibt das Ticket fuer alle sichtbar, damit niemand dasselbe Problem ein zweites Mal aufschreibt"
 context: |-
@@ -23,26 +23,47 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-10T21:03:18Z
-updated-at: 2026-09-10T21:05:35Z
+updated-at: 2026-09-10T21:20:05Z
 updated-by: Alexander Sacharov
+claimed-by: DESKTOP-RFTCH11-447398
+claimed-at: 2026-09-10T21:07:14Z
+assignee: Alexander Sacharov
 ---
 
 # Ein Ref verschwindet erst, wenn das Ticket im Hauptbranch angekommen ist
 
 ## Definition of Done
 
-- [ ] logbook und archive loeschen das Ref nicht mehr sofort, sondern schreiben den Endzustand darauf, sodass andere Klone das Ticket als 'fertig, wartet aufs Landen' sehen; das Ref wird entfernt, sobald 'git rev-list -1 <hauptbranch> -- .jaira/logbook/*/<id>* .jaira/archive/<id>*' einen Commit findet, und das laeuft im Hintergrund nach dem Muster der Update-Pruefung statt auf dem Kommandopfad; der Hauptbranch wird aus origin/HEAD bestimmt, mit Fallback auf origin/main und origin/master und einem Eintrag in settings.json; ein Ticket, das im Endzustand steht und seit einer konfigurierbaren Frist nicht im Hauptbranch angekommen ist, wird von fetch und validate gemeldet; es gibt einen ausdruecklichen Befehl, ein solches Ref trotzdem zu entfernen, und er sagt was er tut; Tests mit zwei Klonen belegen, dass das Ticket im Fenster fuer den anderen Klon sichtbar bleibt und nach dem Merge verschwindet
-- [ ] die Landebranches stehen als LISTE in settings.json ('landing-branches', z.B. main, master, develop, release/*, Glob erlaubt) - damit erledigt sich die Frage, wie die wichtige Branch bei wem heisst; ohne Eintrag gilt origin/HEAD als einziger Eintrag, und loest sich auch der nicht auf, wird KEIN Ref entfernt und einmal gesagt, was einzutragen ist
-- [ ] das Entfernen selbst gehoert in den Snapshot-Lauf (PTQ3XT), nicht in logbook/archive und nicht in einen eigenen Timer: der Snapshot geht periodisch ohnehin ueber alle Refs, und er hat das Ticket unmittelbar davor in den Snapshot-Branch geschrieben - im Moment des Loeschens liegt es also in zwei Ablagen. Reihenfolge im Lauf: erst schreiben, dann jaeten
+- [x] logbook und archive loeschen das Ref nicht mehr sofort, sondern schreiben den Endzustand darauf, sodass andere Klone das Ticket als 'fertig, wartet aufs Landen' sehen; das Ref wird entfernt, sobald 'git rev-list -1 <hauptbranch> -- .jaira/logbook/*/<id>* .jaira/archive/<id>*' einen Commit findet, und das laeuft im Hintergrund nach dem Muster der Update-Pruefung statt auf dem Kommandopfad; der Hauptbranch wird aus origin/HEAD bestimmt, mit Fallback auf origin/main und origin/master und einem Eintrag in settings.json; ein Ticket, das im Endzustand steht und seit einer konfigurierbaren Frist nicht im Hauptbranch angekommen ist, wird von fetch und validate gemeldet; es gibt einen ausdruecklichen Befehl, ein solches Ref trotzdem zu entfernen, und er sagt was er tut; Tests mit zwei Klonen belegen, dass das Ticket im Fenster fuer den anderen Klon sichtbar bleibt und nach dem Merge verschwindet
+  proof: Smoke gegen echtes git: nach archive lebt der Ref weiter (Datei nur im eigenen Branch), ein Snapshot ohne Landung laesst ihn stehen, nach dem Merge meldet der Snapshot 'landed and cleared' und der Ref ist weg - das Ticket liegt dabei im Snapshot-Branch. Ohne aufloesbare Landebranch wird nichts entfernt (TestWithoutALandingBranchNothingIsReaped)
+- [x] die Landebranches stehen als LISTE in settings.json ('landing-branches', z.B. main, master, develop, release/*, Glob erlaubt) - damit erledigt sich die Frage, wie die wichtige Branch bei wem heisst; ohne Eintrag gilt origin/HEAD als einziger Eintrag, und loest sich auch der nicht auf, wird KEIN Ref entfernt und einmal gesagt, was einzutragen ist
+  proof: Smoke gegen echtes git: nach archive lebt der Ref weiter (Datei nur im eigenen Branch), ein Snapshot ohne Landung laesst ihn stehen, nach dem Merge meldet der Snapshot 'landed and cleared' und der Ref ist weg - das Ticket liegt dabei im Snapshot-Branch. Ohne aufloesbare Landebranch wird nichts entfernt (TestWithoutALandingBranchNothingIsReaped)
+- [x] das Entfernen selbst gehoert in den Snapshot-Lauf (PTQ3XT), nicht in logbook/archive und nicht in einen eigenen Timer: der Snapshot geht periodisch ohnehin ueber alle Refs, und er hat das Ticket unmittelbar davor in den Snapshot-Branch geschrieben - im Moment des Loeschens liegt es also in zwei Ablagen. Reihenfolge im Lauf: erst schreiben, dann jaeten
+  proof: Smoke gegen echtes git: nach archive lebt der Ref weiter (Datei nur im eigenen Branch), ein Snapshot ohne Landung laesst ihn stehen, nach dem Merge meldet der Snapshot 'landed and cleared' und der Ref ist weg - das Ticket liegt dabei im Snapshot-Branch. Ohne aufloesbare Landebranch wird nichts entfernt (TestWithoutALandingBranchNothingIsReaped)
 
 ## Options
 
 - [ ] brainstorm
-- [ ] planning
+- [x] planning
 
 ## Plan
 
 <Steps, in order — filled in by the pre-process step, or by you.>
+
+- [x] settings.json: landing-branches als Liste mit Globs; ohne Eintrag origin/HEAD als einziger Eintrag; loest sich keiner auf, wird nichts entfernt
+  proof: core/ticket recordFiled statt recordDelete bei Archive/Logbook; core/gitref Landed/RemoteHead/SetRemoteHead; core/settings Landing (Liste gewinnt vor origin/HEAD, sonst nichts); core/snapshot reap nach dem Schreiben; refsync.Stranded in fetch und validate; jaira snapshot --drop
+- [x] core/gitref: Landed(id, branches) - git rev-list -1 <branch> -- .jaira/logbook/*/<id>* .jaira/archive/<id>* ; nur weggelegte Pfade zaehlen, ein Ticket das dort noch unter tickets/ liegt ist NICHT gelandet
+  proof: core/ticket recordFiled statt recordDelete bei Archive/Logbook; core/gitref Landed/RemoteHead/SetRemoteHead; core/settings Landing (Liste gewinnt vor origin/HEAD, sonst nichts); core/snapshot reap nach dem Schreiben; refsync.Stranded in fetch und validate; jaira snapshot --drop
+- [x] logbook und archive loeschen das Ref nicht mehr, sondern schreiben den Endzustand darauf (RecordFiled statt RecordDelete); jaira delete entfernt es weiter sofort, denn das ist Absicht
+  proof: core/ticket recordFiled statt recordDelete bei Archive/Logbook; core/gitref Landed/RemoteHead/SetRemoteHead; core/settings Landing (Liste gewinnt vor origin/HEAD, sonst nichts); core/snapshot reap nach dem Schreiben; refsync.Stranded in fetch und validate; jaira snapshot --drop
+- [x] Jaeten im Snapshot-Lauf, nach dem Schreiben: Ref weg, sobald das Ticket in einer Landebranch weggelegt ist
+  proof: core/ticket recordFiled statt recordDelete bei Archive/Logbook; core/gitref Landed/RemoteHead/SetRemoteHead; core/settings Landing (Liste gewinnt vor origin/HEAD, sonst nichts); core/snapshot reap nach dem Schreiben; refsync.Stranded in fetch und validate; jaira snapshot --drop
+- [x] fetch und validate melden 'fertig, aber seit N Tagen nicht angekommen' (Frist konfigurierbar)
+  proof: core/ticket recordFiled statt recordDelete bei Archive/Logbook; core/gitref Landed/RemoteHead/SetRemoteHead; core/settings Landing (Liste gewinnt vor origin/HEAD, sonst nichts); core/snapshot reap nach dem Schreiben; refsync.Stranded in fetch und validate; jaira snapshot --drop
+- [x] jaira snapshot --drop <id>: ein Ref trotzdem entfernen, fuer einen Branch der nie gemergt wird, und sagen was es tut
+  proof: core/ticket recordFiled statt recordDelete bei Archive/Logbook; core/gitref Landed/RemoteHead/SetRemoteHead; core/settings Landing (Liste gewinnt vor origin/HEAD, sonst nichts); core/snapshot reap nach dem Schreiben; refsync.Stranded in fetch und validate; jaira snapshot --drop
+- [x] Tests mit zwei Klonen: im Fenster zwischen Logbuch und Merge bleibt das Ticket fuer den anderen Klon sichtbar, nach dem Merge verschwindet es
+  proof: core/ticket recordFiled statt recordDelete bei Archive/Logbook; core/gitref Landed/RemoteHead/SetRemoteHead; core/settings Landing (Liste gewinnt vor origin/HEAD, sonst nichts); core/snapshot reap nach dem Schreiben; refsync.Stranded in fetch und validate; jaira snapshot --drop
 
 ## Progress
 - **2026-09-10 21:03 · Alexander Sacharov** — Verhaeltnis zu den anderen Tickets, damit die Reihenfolge klar ist:
@@ -72,3 +93,10 @@ Wichtiger als die Reihenfolge ist zweierlei:
    - Eine Stelle entscheidet 'dieses Ref hat seinen Zweck erfuellt', statt derselben Pruefung verteilt auf logbook, archive und einen Hintergrundtimer.
 
    Reihenfolge im Lauf ist damit festgelegt und nicht beliebig: erst den Snapshot schreiben, dann jaeten.
+- **2026-09-10 21:20 · Alexander Sacharov** — Gebaut, zusammen mit PTQ3XT. Der Fehler, den der Smoke-Test gefunden hat, ist erwaehnenswert: mein erster Patch hat nur Logbook auf recordFiled umgestellt, Archive lief weiter auf recordDelete - der Ref war nach 'jaira archive' sofort weg, also genau das Fenster, das dieses Ticket schliessen soll. Gefunden, weil der Smoke-Test die Refs auf dem Remote gezaehlt hat und nicht nur den Exit-Code angesehen hat.
+
+Ablauf jetzt, gegen echtes git belegt: nach 'archive' lebt der Ref weiter (die Datei liegt nur im eigenen Branch), ein Snapshot ohne Landung laesst ihn stehen, nach dem Merge in die Landebranch meldet der Lauf 'landed and cleared from the refs' und der Ref ist weg - und das Ticket liegt dabei im Snapshot-Branch, also in zwei Ablagen im Moment des Loeschens.
+
+'jaira delete' loescht den Ref weiter sofort. Das ist kein Widerspruch: Loeschen ist eine Absicht, kein Stadium des Fertigwerdens.
+
+Der Preis, den dieses Ticket einfuehrt, ist benannt und sichtbar gemacht statt verschwiegen: ein Branch, der nie gemergt wird, haelt seinen Ref. fetch und validate melden 'fertig seit N Tagen und nirgends angekommen', und 'jaira snapshot --drop' ist der ausdrueckliche Ausweg.

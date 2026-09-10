@@ -147,6 +147,24 @@ func (y *Syncer) RecordDelete(id string) error {
 	return nil
 }
 
+// RecordFiled queues a ticket's final state for its ref, for a ticket that has
+// been logged or archived here.
+//
+// Filing does not remove the ref, and that is the point. At this moment the
+// ticket file exists only in this clone's branch; until that branch is merged,
+// nobody else can see the ticket. Taking the ref down as well would open a
+// window as long as a review, in which the ticket is invisible to everybody —
+// and somebody who notices the same problem writes it down a second time,
+// with the same solution.
+//
+// The ref goes later, when the ticket has arrived where everybody can see it.
+// That is the snapshot run's job (core/snapshot), which removes a ref only
+// after writing the ticket into the snapshot branch, so at the moment of
+// deletion the ticket exists in two places.
+func (y *Syncer) RecordFiled(id string, content []byte) error {
+	return y.Record(id, content)
+}
+
 // Winner describes the state that beat a rejected write, read from the ref
 // itself. A rejection that only says "you lost" leaves the user to go and find
 // out who and what — which they cannot do without knowing the ref exists.
@@ -883,4 +901,55 @@ func (y *Syncer) ForgetDeparted(id string) {
 	}
 	delete(seen, id)
 	y.saveSeen(seen)
+}
+
+// Stranded is a ticket that was finished here and has not arrived anywhere
+// everybody can see it.
+type Stranded struct {
+	ID    string        `json:"id"`
+	Title string        `json:"title"`
+	Path  string        `json:"path"`
+	Since time.Duration `json:"-"`
+	Days  int           `json:"days"`
+}
+
+// Stranded reports tickets filed away here whose ref is still standing because
+// they have not landed in any landing branch.
+//
+// This is the cost of not deleting a ref at filing time, and it has to be
+// visible: a branch that is never merged would otherwise keep its ref for
+// ever, and the board would carry a finished ticket nobody can account for.
+// Naming it is the whole fix — 'jaira snapshot --drop' is the way out, and it
+// is deliberately a person's decision.
+func (y *Syncer) Stranded(landing []string, grace time.Duration) []Stranded {
+	if y == nil || y.Store == nil || y.Usable() != nil || len(landing) == 0 {
+		return nil
+	}
+	if grace <= 0 {
+		grace = 7 * 24 * time.Hour
+	}
+	var out []Stranded
+	for id, path := range y.Store.FiledAwayIDs() {
+		if _, err := y.Repo.SHA(id); err != nil {
+			continue // no ref: it has already been cleared
+		}
+		if y.Repo.Landed(id, landing) != "" {
+			continue // arrived; the next snapshot run clears the ref
+		}
+		fi, err := os.Stat(path)
+		if err != nil {
+			continue
+		}
+		age := time.Since(fi.ModTime())
+		if age < grace {
+			continue
+		}
+		st := Stranded{ID: id, Path: path, Since: age, Days: int(age.Hours() / 24)}
+		if t, err := y.Store.Load(id); err == nil {
+			st.Title = t.Title
+		}
+		out = append(out, st)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
 }

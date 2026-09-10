@@ -1,8 +1,8 @@
 ---
 id: 01M26F9333EWZS2TN8EHPTQ3XT
 title: "Ein Snapshot-Branch traegt die Tafel als Dateien, ohne dass jemand ihn auscheckt"
-status: backlog
-ready: false
+status: in-progress
+ready: true
 creator: Alexander Sacharov
 goal: "Ein elternloser Branch jaira/board haelt zu jedem Zeitpunkt genau die Tickets, die gerade auf Refs liegen, wird per Plumbing ohne Checkout geschrieben und kann nie mit den Arbeitsdateien kollidieren"
 context: |-
@@ -28,25 +28,43 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-10T20:13:52Z
-updated-at: 2026-09-10T21:05:38Z
+updated-at: 2026-09-10T21:20:02Z
 updated-by: Alexander Sacharov
+claimed-by: DESKTOP-RFTCH11-447398
+claimed-at: 2026-09-10T21:07:00Z
+assignee: Alexander Sacharov
 ---
 
 # Ein Snapshot-Branch traegt die Tafel als Dateien, ohne dass jemand ihn auscheckt
 
 ## Definition of Done
 
-- [ ] 'jaira snapshot' baut den Branch aus dem aktuellen Satz refs/jaira/tickets/* per hash-object, mktree und commit-tree, ohne Checkout und ohne den Arbeitsbaum zu beruehren, und laesst sich in jedem Repo-Zustand aufrufen; der erste Commit ist elternlos, jeder weitere haengt am vorigen, sodass git log die Geschichte der Tafel ist; ein Ticket, dessen Ref verschwunden ist, fehlt im neuen Snapshot und bleibt in den vorigen Commits lesbar; die Dateien liegen unter board/<id>.md, damit ein versehentlicher Merge dieses Branches nie mit .jaira/tickets/ kollidiert; zwei gleichzeitige Snapshots loesen per --force-with-lease auf statt sich zu ueberschreiben; der Branchname ist konfigurierbar und der Befehl sagt, was er hinzugefuegt und entfernt hat
-- [ ] der Tree wird billig neu berechnet und nur gepusht wenn sich sein Hash geaendert hat; ausgeloest wird das im Hintergrund, wenn der letzte Snapshot aelter als drei Tage ist (Intervall konfigurierbar), nach dem Muster der Update-Pruefung - nie auf dem Kommandopfad, nie als Timer, den jemand von Hand einrichten muss, und niemals bei jedem Schreibvorgang
+- [x] 'jaira snapshot' baut den Branch aus dem aktuellen Satz refs/jaira/tickets/* per hash-object, mktree und commit-tree, ohne Checkout und ohne den Arbeitsbaum zu beruehren, und laesst sich in jedem Repo-Zustand aufrufen; der erste Commit ist elternlos, jeder weitere haengt am vorigen, sodass git log die Geschichte der Tafel ist; ein Ticket, dessen Ref verschwunden ist, fehlt im neuen Snapshot und bleibt in den vorigen Commits lesbar; die Dateien liegen unter board/<id>.md, damit ein versehentlicher Merge dieses Branches nie mit .jaira/tickets/ kollidiert; zwei gleichzeitige Snapshots loesen per --force-with-lease auf statt sich zu ueberschreiben; der Branchname ist konfigurierbar und der Befehl sagt, was er hinzugefuegt und entfernt hat
+  proof: core/snapshot: Baum aus den Ref-Blobs per Plumbing, elternloser erster Commit, unveraenderter Baum-Hash schreibt nichts; Smoke: Arbeitsbaum unberuehrt, git log jaira/board ist die Geschichte
+- [x] der Tree wird billig neu berechnet und nur gepusht wenn sich sein Hash geaendert hat; ausgeloest wird das im Hintergrund, wenn der letzte Snapshot aelter als drei Tage ist (Intervall konfigurierbar), nach dem Muster der Update-Pruefung - nie auf dem Kommandopfad, nie als Timer, den jemand von Hand einrichten muss, und niemals bei jedem Schreibvorgang
+  proof: Due/SpawnRun: Stempel vor dem Lauf, Kind mit JAIRA_NO_SNAPSHOT=1, kein Wait, stdio auf DevNull; TestDueOnlyWhenTheLastSnapshotIsOldEnough
 
 ## Options
 
 - [ ] brainstorm
-- [ ] planning
+- [x] planning
 
 ## Plan
 
 <Steps, in order — filled in by the pre-process step, or by you.>
+
+- [x] core/snapshot: Baum aus dem aktuellen Satz Refs bauen (board/<id>.md), Blobs per cat-file --batch-check aus den Refs nehmen statt neu zu hashen - sie liegen schon im Repository
+  proof: core/snapshot/snapshot.go (Runner.Run: BlobsOf/Tree/Nest/Commit, Tree-Hash-Vergleich statt Commit, PushBranch mit --force-with-lease) und core/snapshot/schedule.go (Stamp/Due/SpawnRun nach dem Muster der Update-Pruefung); internal/cli/snapshot.go; 6 Tests in core/snapshot
+- [x] Commit anhaengen: erster elternlos, jeder weitere am vorigen; ist der Baum-Hash unveraendert, gar kein Commit und kein Push
+  proof: core/snapshot/snapshot.go (Runner.Run: BlobsOf/Tree/Nest/Commit, Tree-Hash-Vergleich statt Commit, PushBranch mit --force-with-lease) und core/snapshot/schedule.go (Stamp/Due/SpawnRun nach dem Muster der Update-Pruefung); internal/cli/snapshot.go; 6 Tests in core/snapshot
+- [x] Push mit --force-with-lease auf den Snapshot-Branch, damit zwei gleichzeitige Snapshots sich nicht ueberschreiben
+  proof: core/snapshot/snapshot.go (Runner.Run: BlobsOf/Tree/Nest/Commit, Tree-Hash-Vergleich statt Commit, PushBranch mit --force-with-lease) und core/snapshot/schedule.go (Stamp/Due/SpawnRun nach dem Muster der Update-Pruefung); internal/cli/snapshot.go; 6 Tests in core/snapshot
+- [x] Ausloesen im Hintergrund, wenn der letzte Snapshot aelter als drei Tage ist (Intervall in settings.json), nach dem Muster der Update-Pruefung - nie auf dem Kommandopfad
+  proof: core/snapshot/snapshot.go (Runner.Run: BlobsOf/Tree/Nest/Commit, Tree-Hash-Vergleich statt Commit, PushBranch mit --force-with-lease) und core/snapshot/schedule.go (Stamp/Due/SpawnRun nach dem Muster der Update-Pruefung); internal/cli/snapshot.go; 6 Tests in core/snapshot
+- [x] jaira snapshot: den Lauf von Hand ausloesen, und sagen was hinzugekommen und was entfernt wurde
+  proof: core/snapshot/snapshot.go (Runner.Run: BlobsOf/Tree/Nest/Commit, Tree-Hash-Vergleich statt Commit, PushBranch mit --force-with-lease) und core/snapshot/schedule.go (Stamp/Due/SpawnRun nach dem Muster der Update-Pruefung); internal/cli/snapshot.go; 6 Tests in core/snapshot
+- [x] Tests: zwei Laeufe, dazwischen ein Ref weg und eins neu; git log auf dem Branch ist die Geschichte, git diff nennt die Aenderung; unveraenderter Satz Refs erzeugt keinen zweiten Commit
+  proof: core/snapshot/snapshot.go (Runner.Run: BlobsOf/Tree/Nest/Commit, Tree-Hash-Vergleich statt Commit, PushBranch mit --force-with-lease) und core/snapshot/schedule.go (Stamp/Due/SpawnRun nach dem Muster der Update-Pruefung); internal/cli/snapshot.go; 6 Tests in core/snapshot
 
 ## Progress
 - **2026-09-10 20:22 · Alexander Sacharov** — Frage geklaert (Alexander): muss der Snapshot bei jeder Aenderung laufen? Nein - periodisch, und das ist nicht Faulheit, sondern die richtige Antwort. Drei Gruende, in der Reihenfolge ihres Gewichts:
@@ -68,3 +86,12 @@ Wichtiger als das Intervall: kein Timer, den jemand von Hand einrichten muss. Da
 Das ist kein Anhaengsel, sondern der Grund, warum es hierhin gehoert: der Snapshot hat das Ticket unmittelbar davor in den Snapshot-Branch geschrieben, also liegt es im Moment des Loeschens in zwei Ablagen - im Snapshot und in der gemergten Branch. Ein Loeschen an jeder anderen Stelle haette diese Garantie nicht.
 
 Reihenfolge im Lauf, nicht beliebig: erst schreiben, dann jaeten. Und was sich nicht aufloest (keine Landebranch bestimmbar), wird nicht angefasst.
+- **2026-09-10 21:20 · Alexander Sacharov** — Gebaut. Drei Dinge, die beim Bauen entschieden oder gefunden wurden:
+
+1. Die Blobs werden NICHT neu gehasht. Sie liegen schon im Repository, hingelegt von den Ref-Schreibungen, also holt der Lauf sie mit einem cat-file --batch-check und baut nur Tree und Commit dazu. Ein Snapshot kostet damit zwei Objekte, egal wie viele Tickets.
+
+2. Kein Commit, wenn sich nichts geaendert hat, und zwar an der einzigen Stelle gepruefft, an der es billig ist: der neu gebaute Tree-Hash gegen den Tree des Branches. Gleicher Hash heisst gleicher Inhalt, ohne Vergleich der Dateien.
+
+3. Der Lauf ist die einzige Stelle, die den Remote nach seinem HEAD fragen darf ('git remote set-head origin -a'), wenn die Landebranch nicht aufloesbar ist. Beim Klon eines leeren Repos gibt es origin/HEAD nicht, und genau so ein Board ist der Normalfall bei jaira init - im Smoke-Test war es zuerst nicht aufgeloest und es wurde korrekt NICHTS gejaetet, danach hat der Lauf es selbst gesetzt.
+
+Hintergrundlauf ist eine Kopie des Musters aus der Update-Pruefung, mit denselben Gruenden: Stempel VOR dem Lauf (ein gescheiterter Lauf darf nicht beim naechsten Kommando erneut ausloesen), Kind mit JAIRA_NO_SNAPSHOT=1 als Rekursionsschutz, kein Wait, stdio auf DevNull, und nie aus einem Testbinary.

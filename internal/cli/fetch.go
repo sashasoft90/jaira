@@ -55,11 +55,15 @@ notifications are turned off in ~/.jaira/settings.json ("notify-off": true).`,
 				announceArrivals(arrivals)
 			}
 			departed := refs.Departed()
+			stranded := strandedHere()
 			if g.jsonOut {
-				return emit(cmd.OutOrStdout(), map[string]any{"arrivals": arrivals, "departed": departed})
+				return emit(cmd.OutOrStdout(), map[string]any{
+					"arrivals": arrivals, "departed": departed, "stranded": stranded,
+				})
 			}
 			printArrivals(cmd.OutOrStdout(), arrivals)
 			printDeparted(cmd.OutOrStdout(), departed)
+			printStranded(cmd.OutOrStdout(), stranded)
 			return nil
 		},
 	}
@@ -88,6 +92,31 @@ func announceArrivals(arrivals []refsync.Arrival) {
 			body += " (" + a.Status + ")"
 		}
 		notify.Send("jaira: a ticket is yours", body)
+	}
+}
+
+// strandedHere lists tickets finished on this machine that have not arrived in
+// any landing branch. Resolved the same way the snapshot run resolves it, so
+// the report and the reaping can never disagree about what counts as landed.
+func strandedHere() []refsync.Stranded {
+	set := settings.Load()
+	return refs.Stranded(set.Landing(set.RemoteName(), refs.Repo.RemoteHead), set.LandingGrace())
+}
+
+// printStranded names finished tickets whose branch never arrived. This is the
+// price of keeping a ref alive until the ticket lands, and it has to be
+// visible: otherwise an abandoned branch keeps its ref for ever and the board
+// carries a finished ticket nobody can account for.
+func printStranded(w io.Writer, stranded []refsync.Stranded) {
+	if len(stranded) == 0 {
+		return
+	}
+	fmt.Fprintln(w)
+	for _, s := range stranded {
+		fmt.Fprintf(w, "%-8s finished %d day(s) ago and has not arrived in a landing branch: %s\n",
+			ticket.Handle(s.ID), s.Days, s.Title)
+		fmt.Fprintf(w, "         push the branch that holds it, or give up on it with 'jaira snapshot --drop %s'\n",
+			ticket.Handle(s.ID))
 	}
 }
 

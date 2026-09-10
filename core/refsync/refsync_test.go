@@ -709,7 +709,9 @@ func TestATicketTakenOffTheBoardElsewhereIsReportedHere(t *testing.T) {
 		t.Fatalf("nothing has left the board yet: %+v", d)
 	}
 
-	// Ada takes it over and files it away, which deletes the ref.
+	// Ada takes it over and files it away. Filing does NOT remove the ref —
+	// the ticket file is only in her branch, and taking the shared copy down
+	// too would hide the ticket from everybody until that branch is merged.
 	if _, err := ada.syncer.Pull(id, true); err != nil {
 		t.Fatalf("ada steal: %v", err)
 	}
@@ -718,6 +720,19 @@ func TestATicketTakenOffTheBoardElsewhereIsReportedHere(t *testing.T) {
 	}
 	if _, err := ada.syncer.Flush(); err != nil {
 		t.Fatalf("ada flush: %v", err)
+	}
+	if _, err := ada.syncer.Repo.SHA(id); err != nil {
+		t.Fatalf("filing a ticket away removed its ref: %v", err)
+	}
+	// The ref goes when the ticket has landed somewhere everybody can see,
+	// which is the snapshot run's job. Done here directly, because what is
+	// under test is the report, not who deletes.
+	lease, err := ada.syncer.Repo.SHA(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ada.syncer.Repo.Delete(id, lease); err != nil {
+		t.Fatalf("removing the ref: %v", err)
 	}
 
 	// Berk's fetch must both notice and keep noticing.
@@ -743,5 +758,45 @@ func TestATicketTakenOffTheBoardElsewhereIsReportedHere(t *testing.T) {
 	berk.syncer.ForgetDeparted(id)
 	if d := berk.syncer.Departed(); len(d) != 0 {
 		t.Errorf("still reported after being dealt with: %+v", d)
+	}
+}
+
+// Keeping a ref alive until the ticket lands has a cost: a branch nobody ever
+// merges keeps its ref for ever. That has to be visible, or the board carries
+// a finished ticket nobody can account for.
+func TestAFinishedTicketThatNeverLandedIsReported(t *testing.T) {
+	ada, _, _ := twoSides(t)
+	id := create(t, ada, "finished but never pushed")
+	if _, err := ada.syncer.Flush(); err != nil {
+		t.Fatalf("flush: %v", err)
+	}
+	if _, err := ada.store.Archive(id); err != nil {
+		t.Fatalf("archive: %v", err)
+	}
+	if _, err := ada.syncer.Flush(); err != nil {
+		t.Fatalf("flush after archive: %v", err)
+	}
+	// Filing does not remove the ref, which is the behaviour this report exists
+	// to keep honest.
+	if _, err := ada.syncer.Repo.SHA(id); err != nil {
+		t.Fatalf("filing removed the ref: %v", err)
+	}
+
+	landing := []string{"refs/heads/master"}
+	// Within the grace period there is nothing to say: a review takes time.
+	if got := ada.syncer.Stranded(landing, time.Hour); len(got) != 0 {
+		t.Errorf("reported inside the grace period: %+v", got)
+	}
+	// Past it, it is named, with how long it has been waiting.
+	got := ada.syncer.Stranded(landing, time.Nanosecond)
+	if len(got) != 1 || got[0].ID != id {
+		t.Fatalf("a finished ticket that never landed was not reported: %+v", got)
+	}
+	if got[0].Path == "" {
+		t.Error("the report does not say which file it is")
+	}
+	// And with no landing branch resolved there is nothing to be late for.
+	if none := ada.syncer.Stranded(nil, time.Nanosecond); len(none) != 0 {
+		t.Errorf("reported with no landing branch configured: %+v", none)
 	}
 }

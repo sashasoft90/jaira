@@ -28,6 +28,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"sort"
 	"strings"
 )
 
@@ -326,6 +327,200 @@ func (r *Repo) ReadMany(ids []string) (map[string][]byte, error) {
 		rest = strings.TrimPrefix(rest, "\n")
 	}
 	return out, nil
+}
+
+// BlobsOf resolves the blob each ticket ref carries, in one git invocation.
+//
+// A snapshot reuses these blobs rather than hashing the content again: the
+// objects are already in the repository, put there by the ref writes, so a
+// snapshot adds a tree and a commit and nothing else.
+func (r *Repo) BlobsOf(ids []string) (map[string]string, error) {
+	out := make(map[string]string, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	var in strings.Builder
+	for _, id := range ids {
+		fmt.Fprintf(&in, "%s:%s.md\n", RefName(id), id)
+	}
+	stdout, _, err := r.run(in.String(), "cat-file", "--batch-check")
+	if err != nil {
+		if errors.Is(err, ErrNoGit) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("gitref: cat-file --batch-check: %w", err)
+	}
+	lines := strings.Split(strings.TrimRight(stdout, "\n"), "\n")
+	for i, id := range ids {
+		if i >= len(lines) {
+			break
+		}
+		fields := strings.Fields(lines[i])
+		if len(fields) < 2 || fields[1] != "blob" {
+			continue // missing or not a file: nothing to put in the snapshot
+		}
+		out[id] = fields[0]
+	}
+	return out, nil
+}
+
+// Tree writes a tree object holding the given entries, and returns its hash.
+// The entries are name to blob, all regular files.
+func (r *Repo) Tree(entries map[string]string) (string, error) {
+	names := make([]string, 0, len(entries))
+	for name := range entries {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	var in strings.Builder
+	for _, name := range names {
+		fmt.Fprintf(&in, "100644 blob %s\t%s\n", entries[name], name)
+	}
+	out, errb, err := r.run(in.String(), "mktree")
+	if err != nil {
+		if errors.Is(err, ErrNoGit) {
+			return "", err
+		}
+		return "", fmt.Errorf("gitref: mktree: %s", strings.TrimSpace(errb))
+	}
+	return strings.TrimSpace(out), nil
+}
+
+// Nest wraps a tree under a single directory name and returns the outer tree.
+func (r *Repo) Nest(dir, tree string) (string, error) {
+	out, errb, err := r.run(fmt.Sprintf("040000 tree %s\t%s\n", tree, dir), "mktree")
+	if err != nil {
+		if errors.Is(err, ErrNoGit) {
+			return "", err
+		}
+		return "", fmt.Errorf("gitref: mktree: %s", strings.TrimSpace(errb))
+	}
+	return strings.TrimSpace(out), nil
+}
+
+// Commit writes a commit object for a tree, optionally with a parent.
+func (r *Repo) Commit(tree, parent, message string) (string, error) {
+	args := []string{"commit-tree", tree, "-m", message}
+	if parent != "" {
+		args = append(args, "-p", parent)
+	}
+	return r.value(args...)
+}
+
+// TreeOf returns the tree a commit points at, or "" when the commit is unknown.
+func (r *Repo) TreeOf(rev string) string {
+	out, _, err := r.run("", "rev-parse", "--verify", "--quiet", rev+"^{tree}")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(out)
+}
+
+// Rev resolves a revision to a SHA, or "" when it does not exist.
+func (r *Repo) Rev(rev string) string {
+	out, _, err := r.run("", "rev-parse", "--verify", "--quiet", rev)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(out)
+}
+
+// PushBranch moves a branch on the remote to commit, refusing if the remote
+// moved since lease was read. Used for the snapshot branch, where two people
+// snapshotting at once must not overwrite one another.
+func (r *Repo) PushBranch(branch, commit, lease string) error {
+	local := "refs/heads/" + branch
+	args := []string{"push", "--force-with-lease=" + local + ":" + lease, r.remote(), commit + ":" + local}
+	_, errb, err := r.run("", args...)
+	if err != nil {
+		if errors.Is(err, ErrNoGit) {
+			return err
+		}
+		return classify(errb, err)
+	}
+	_, _, _ = r.run("", "update-ref", local, commit)
+	return nil
+}
+
+// FetchBranch brings one branch from the remote into a local ref of the same
+// name, so a snapshot can be appended to what the remote already has.
+func (r *Repo) FetchBranch(branch string) error {
+	_, errb, err := r.run("", "fetch", "--quiet", r.remote(),
+		"+refs/heads/"+branch+":refs/heads/"+branch)
+	if err != nil {
+		if errors.Is(err, ErrNoGit) {
+			return err
+		}
+		return classify(errb, err)
+	}
+	return nil
+}
+
+// RemoteHead returns the remote's default branch as a revision (origin/master
+// and the like), or "" if the clone does not know it.
+//
+// A clone of a repository that has commits knows this without asking anybody;
+// a clone of an empty one does not, and cannot be told until the remote has a
+// branch at all. So this answers from what is already local, and SetRemoteHead
+// is the separate, network-touching way to fill it in later.
+func (r *Repo) RemoteHead() string {
+	out, _, err := r.run("", "symbolic-ref", "--quiet", "refs/remotes/"+r.remote()+"/HEAD")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimPrefix(strings.TrimSpace(out), "refs/remotes/")
+}
+
+// SetRemoteHead asks the remote which branch it points HEAD at and records it,
+// so RemoteHead can answer locally from then on. One round trip, ever.
+func (r *Repo) SetRemoteHead() error {
+	_, errb, err := r.run("", "remote", "set-head", r.remote(), "-a")
+	if err != nil {
+		if errors.Is(err, ErrNoGit) {
+			return err
+		}
+		return classify(errb, err)
+	}
+	return nil
+}
+
+// LsTree lists the file names directly under dir in a revision.
+func (r *Repo) LsTree(rev, dir string) ([]string, error) {
+	out, err := r.value("ls-tree", "--name-only", rev+":"+dir)
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, line := range strings.Split(out, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			names = append(names, line)
+		}
+	}
+	return names, nil
+}
+
+// Landed reports the commit in which a ticket was filed away on one of the
+// given branches, or "" if it has not arrived there.
+//
+// Only the filed-away paths count. A ticket still sitting under tickets/ on
+// that branch has not landed in this sense: it is on the board there, which is
+// the opposite of finished.
+func (r *Repo) Landed(id string, branches []string) string {
+	for _, b := range branches {
+		rev := r.Rev(b)
+		if rev == "" {
+			continue
+		}
+		out, _, err := r.run("", "rev-list", "-1", rev, "--",
+			".jaira/logbook/*/"+id+"*", ".jaira/archive/"+id+"*")
+		if err != nil {
+			continue
+		}
+		if sha := strings.TrimSpace(out); sha != "" {
+			return sha
+		}
+	}
+	return ""
 }
 
 // Fetch brings every ticket ref up to date in one roundtrip. The refspec is

@@ -34,6 +34,7 @@ func attachRefs(s *ticket.Store) {
 	// And the same syncer supplies what the board can see without having a
 	// file for it, so list, next and show are never half a board.
 	s.Source = refs
+	openedStore = s
 }
 
 // fireHook calls the user's script for a move or a claim, for delivery that
@@ -87,6 +88,15 @@ func fileOnRefOnly(s *ticket.Store, t *ticket.Ticket) (onRefOnly bool) {
 	}
 	return false
 }
+
+// openedStore is the store this command opened, remembered so the work that
+// happens after the command — sending queued writes, and taking a backup when
+// one is due — does not have to find the board a second time.
+var openedStore *ticket.Store
+
+// maybeSnapshotIfOpened takes the board's periodic backup, but only if a
+// command actually opened a board.
+func maybeSnapshotIfOpened() { maybeSnapshot(openedStore) }
 
 // flushRefs sends what this command queued, and is called once after the
 // command has finished — including after it failed, because a ticket the

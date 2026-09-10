@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/BeMuCa/jaira/core/settings"
 )
@@ -37,7 +38,7 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 		t.Fatalf("settings file: %v", err)
 	}
 	got := settings.Load()
-	if got != want {
+	if got.Remote != want.Remote || got.NotifyOff != want.NotifyOff || got.Hook != want.Hook {
 		t.Errorf("round trip changed the settings: %+v", got)
 	}
 	if got.RemoteName() != "board" {
@@ -70,5 +71,56 @@ func TestBlankRemoteIsStillOrigin(t *testing.T) {
 	}
 	if got := settings.Load().RemoteName(); got != "origin" {
 		t.Errorf("whitespace remote resolved to %q", got)
+	}
+}
+
+// The landing branches decide when a ref may be removed, so what happens when
+// nobody configured them is the important case: nothing is removable.
+func TestLandingFallsBackToTheRemoteHeadAndThenToNothing(t *testing.T) {
+	t.Setenv("JAIRA_HOME", t.TempDir())
+
+	s := settings.Load()
+	if got := s.Landing("origin", func() string { return "origin/master" }); len(got) != 1 || got[0] != "origin/master" {
+		t.Errorf("with no config, want the remote head, got %v", got)
+	}
+	if got := s.Landing("origin", func() string { return "" }); len(got) != 0 {
+		t.Errorf("with nothing resolvable, want no branches at all, got %v", got)
+	}
+	if got := s.Landing("origin", nil); len(got) != 0 {
+		t.Errorf("want no branches when there is nobody to ask, got %v", got)
+	}
+}
+
+// A configured list wins over the remote's head: the host's default branch is
+// not necessarily the one a team cares about.
+func TestConfiguredLandingBranchesWinAndAreRemotePrefixed(t *testing.T) {
+	t.Setenv("JAIRA_HOME", t.TempDir())
+	if err := settings.Save(settings.Settings{LandingBranches: []string{"main", " develop ", "", "origin/release/1.x"}}); err != nil {
+		t.Fatal(err)
+	}
+	got := settings.Load().Landing("origin", func() string { return "origin/master" })
+	want := []string{"origin/main", "origin/develop", "origin/release/1.x"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("got %v, want %v", got, want)
+			break
+		}
+	}
+}
+
+func TestSnapshotDefaults(t *testing.T) {
+	t.Setenv("JAIRA_HOME", t.TempDir())
+	s := settings.Load()
+	if s.SnapshotBranchName() != "jaira/board" {
+		t.Errorf("snapshot branch defaults to %q", s.SnapshotBranchName())
+	}
+	if s.SnapshotEvery() != 72*time.Hour {
+		t.Errorf("snapshot interval defaults to %v", s.SnapshotEvery())
+	}
+	if s.LandingGrace() != 7*24*time.Hour {
+		t.Errorf("landing grace defaults to %v", s.LandingGrace())
 	}
 }

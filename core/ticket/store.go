@@ -128,10 +128,20 @@ type WriteRecorder interface {
 	// a veto: by the time it runs, the ticket on disk has already changed.
 	Record(id string, content []byte) error
 
-	// RecordDelete says the ticket has left the board — logged, archived or
-	// deleted. It is told here rather than by each command for the same reason
-	// Record is: leaving a ticket's ref behind would take it off the board for
-	// its owner and leave it on everyone else's forever.
+	// RecordFiled says the ticket has been filed away here — logged or
+	// archived — and hands over its final bytes.
+	//
+	// Filing is deliberately not a deletion. The ticket file is at that moment
+	// only in the filer's own branch, and until that branch is merged nobody
+	// else can see the ticket at all: taking it off the shared channel too
+	// would open a window, as long as a review takes, in which somebody
+	// notices the same problem and writes it down a second time. So the final
+	// state goes onto the channel and stays there until the ticket has
+	// arrived somewhere everybody can see.
+	RecordFiled(id string, content []byte) error
+
+	// RecordDelete says the ticket is gone for good. Only 'jaira delete' does
+	// this: deleting is an intention, not a stage of finishing.
 	RecordDelete(id string) error
 }
 
@@ -163,6 +173,21 @@ func (s *Store) recordDelete(id string) error {
 		return nil
 	}
 	if err := s.Recorder.RecordDelete(id); err != nil {
+		return fmt.Errorf("%w: %w", ErrNotRecorded, err)
+	}
+	return nil
+}
+
+// recordFiled reports a ticket filed away, with the bytes it ended up with.
+func (s *Store) recordFiled(id, path string) error {
+	if s.Recorder == nil {
+		return nil
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrNotRecorded, err)
+	}
+	if err := s.Recorder.RecordFiled(id, content); err != nil {
 		return fmt.Errorf("%w: %w", ErrNotRecorded, err)
 	}
 	return nil
@@ -257,7 +282,7 @@ func (s *Store) Archive(id string) (string, error) {
 	if err := os.Rename(src, dst); err != nil {
 		return "", err
 	}
-	return dst, s.recordDelete(t.ID)
+	return dst, s.recordFiled(t.ID, dst)
 }
 
 // Delete removes a ticket's file and returns the path it was at.
@@ -324,7 +349,7 @@ func (s *Store) Logbook(id, folder string) (string, error) {
 	if err := os.Rename(src, dst); err != nil {
 		return "", err
 	}
-	return dst, s.recordDelete(t.ID)
+	return dst, s.recordFiled(t.ID, dst)
 }
 
 // logbookFolders lists the per-person dated folders of the logbook as full
@@ -598,6 +623,31 @@ func (s *Store) offBoardDuplicates(onBoard []*Ticket) []string {
 	}
 	sort.Strings(problems)
 	return problems
+}
+
+// FiledAwayIDs maps the ids of tickets filed away here — logged or archived —
+// to the file that holds them.
+//
+// Exported because two questions need it and neither belongs in this package:
+// whether a ticket is on the board and filed away at once, and whether a
+// finished ticket has arrived anywhere everybody can see it.
+func (s *Store) FiledAwayIDs() map[string]string {
+	out := map[string]string{}
+	for _, dir := range s.filedAwayDirs() {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+				continue
+			}
+			if id := IDFromFilename(e.Name()); id != "" {
+				out[id] = filepath.Join(dir, e.Name())
+			}
+		}
+	}
+	return out
 }
 
 // filedAwayDirs are the directories a ticket lands in when it leaves the board.

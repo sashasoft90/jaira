@@ -17,8 +17,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/BeMuCa/jaira/core/gitref"
+	"github.com/BeMuCa/jaira/core/snapshot"
 )
 
 // Settings is the whole file.
@@ -38,6 +40,30 @@ type Settings struct {
 	// ntfy.sh, Telegram). jaira only calls it and brings no dependency of its
 	// own; an empty value calls nothing.
 	Hook string `json:"hook,omitempty"`
+
+	// LandingBranches are the branches whose contents mean a ticket has
+	// arrived: filed away in one of them, it is finished for everybody and its
+	// ref has done its job.
+	//
+	// A list with globs rather than one "main branch", because there is no
+	// answer to what the important branch is called — main, master, develop, a
+	// release line — and a list turns a guess into a setting. Empty falls back
+	// to the remote's own HEAD, and if that cannot be resolved either, nothing
+	// is ever removed.
+	LandingBranches []string `json:"landing-branches,omitempty"`
+
+	// SnapshotBranch holds the board as files, as a backup for whoever clones
+	// for the first time and has no refs yet. Empty means jaira/board.
+	SnapshotBranch string `json:"snapshot-branch,omitempty"`
+
+	// SnapshotEveryHours is how old the backup may get. Empty means three
+	// days: every participant's clone holds the refs, so the board survives any
+	// one machine, and this is for the slow cases only.
+	SnapshotEveryHours int `json:"snapshot-every-hours,omitempty"`
+
+	// LandingGraceDays is how long a finished ticket may go without arriving in
+	// a landing branch before jaira mentions it. Empty means seven.
+	LandingGraceDays int `json:"landing-grace-days,omitempty"`
 }
 
 // Path is the settings file, honouring JAIRA_HOME so tests and a sandboxed run
@@ -101,3 +127,64 @@ func (s Settings) RemoteName() string {
 // NotifyEnabled reports whether an assignment should raise a desktop
 // notification.
 func (s Settings) NotifyEnabled() bool { return !s.NotifyOff }
+
+// SnapshotBranchName returns the configured snapshot branch, or the default.
+func (s Settings) SnapshotBranchName() string {
+	if b := strings.TrimSpace(s.SnapshotBranch); b != "" {
+		return b
+	}
+	return snapshot.DefaultBranch
+}
+
+// SnapshotEvery returns how old a snapshot may get.
+func (s Settings) SnapshotEvery() time.Duration {
+	if s.SnapshotEveryHours > 0 {
+		return time.Duration(s.SnapshotEveryHours) * time.Hour
+	}
+	return snapshot.DefaultEvery
+}
+
+// LandingGrace returns how long a finished ticket may take to arrive before it
+// is worth mentioning.
+func (s Settings) LandingGrace() time.Duration {
+	if s.LandingGraceDays > 0 {
+		return time.Duration(s.LandingGraceDays) * 24 * time.Hour
+	}
+	return 7 * 24 * time.Hour
+}
+
+// Landing returns the branches to check for a landed ticket, as revisions on
+// the remote.
+//
+// The configured list wins over the remote's HEAD, and that order matters: the
+// HEAD is the hosting provider's default, not necessarily the branch a team
+// cares about. Both are prefixed with the remote, since what counts is what
+// has arrived where everybody can see it — not what has landed in somebody's
+// local copy of a branch.
+func (s Settings) Landing(remote string, remoteHead func() string) []string {
+	if remote == "" {
+		remote = gitref.DefaultRemote
+	}
+	if len(s.LandingBranches) > 0 {
+		out := make([]string, 0, len(s.LandingBranches))
+		for _, b := range s.LandingBranches {
+			b = strings.TrimSpace(b)
+			if b == "" {
+				continue
+			}
+			if strings.HasPrefix(b, remote+"/") || strings.HasPrefix(b, "refs/") {
+				out = append(out, b)
+				continue
+			}
+			out = append(out, remote+"/"+b)
+		}
+		return out
+	}
+	if remoteHead != nil {
+		if head := strings.TrimSpace(remoteHead()); head != "" {
+			return []string{head}
+		}
+	}
+	// Nothing resolved: no branch, and therefore nothing ever removed.
+	return nil
+}

@@ -103,6 +103,7 @@ func Execute(version string) int {
 	// even when the command failed, because a ticket that was written is a
 	// ticket the team should see.
 	flushRefs()
+	maybeSnapshotIfOpened()
 	if err == nil {
 		return ExitOK
 	}
@@ -223,6 +224,7 @@ Exit codes:
 		newFetchCmd(),
 		newPullCmd(),
 		newReleaseCmd(),
+		newSnapshotCmd(),
 	)
 	// Usage errors must exit 2 rather than 1.
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
