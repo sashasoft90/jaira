@@ -168,3 +168,100 @@ func ticketPath(t *testing.T, dir, id string) string {
 	t.Fatalf("no ticket file for %s in %s", id, dir)
 	return ""
 }
+
+// Two branches that each created the same ticket file — which is what git calls
+// an add/add conflict, and what it hands the merge driver an empty base for.
+// This is the case that used to fail silently: git left "ours" behind with no
+// conflict markers, so it read as a clean merge while the other side's lane and
+// updated-by were gone.
+func TestTwoBranchesThatBothCreateTheTicketStillMergeFieldAware(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds the binary")
+	}
+	for _, tool := range []string{"git", "go"} {
+		if _, err := exec.LookPath(tool); err != nil {
+			t.Skipf("%s is not on PATH", tool)
+		}
+	}
+	root := t.TempDir()
+	t.Setenv("JAIRA_HOME", filepath.Join(root, "home"))
+
+	bin := filepath.Join(root, "jaira")
+	build := exec.Command("go", "build", "-o", bin, "github.com/BeMuCa/jaira/cmd/jaira")
+	build.Dir = repoRoot(t)
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("building the binary: %v\n%s", err, out)
+	}
+
+	repo := filepath.Join(root, "repo")
+	if err := os.MkdirAll(repo, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	run(t, repo, "git", "init", "--quiet", "-b", "master", ".")
+	run(t, repo, "git", "config", "user.name", "ada")
+	run(t, repo, "git", "config", "user.email", "ada@example.test")
+	run(t, repo, bin, "init")
+	run(t, repo, bin, "share")
+	run(t, repo, "git", "add", ".jaira", ".gitignore")
+	run(t, repo, "git", "commit", "--quiet", "-m", "share the board")
+
+	// Ada creates the ticket on her branch. Her write is the later one by the
+	// clock, which is exactly what must not decide the lane.
+	run(t, repo, "git", "checkout", "--quiet", "-b", "ada")
+	out := runOut(t, repo, bin, "create", "cookie dropped on 302",
+		"--goal", "the cookie survives the OAuth round-trip",
+		"--context", "reported while debugging Safari logouts",
+		"--dod", "survives the round-trip", "--json")
+	id := jsonField(t, out, "id")
+	run(t, repo, bin, "tag", id, "concurrency")
+	run(t, repo, "git", "add", ".jaira")
+	run(t, repo, "git", "commit", "--quiet", "-m", "ada creates the ticket")
+
+	path := ticketPath(t, filepath.Join(repo, ".jaira", "tickets"), id)
+	name := filepath.Base(path)
+
+	// Berk lands the same ticket on his own branch, one lane further on. The
+	// file exists on both branches with no common ancestor: add/add.
+	run(t, repo, "git", "checkout", "--quiet", "master")
+	run(t, repo, "git", "checkout", "--quiet", "-b", "berk")
+	run(t, repo, "git", "checkout", "--quiet", "ada", "--", ".jaira/tickets/"+name)
+	landed, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	theirs := strings.ReplaceAll(string(landed), "status: backlog", "status: todo")
+	theirs = strings.ReplaceAll(theirs, "updated-by: ada", "updated-by: berk")
+	theirs = strings.ReplaceAll(theirs, "  - concurrency", "  - cli")
+	if err := os.WriteFile(path, []byte(theirs), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run(t, repo, "git", "add", ".jaira")
+	run(t, repo, "git", "commit", "--quiet", "-m", "berk lands the same ticket")
+
+	run(t, repo, "git", "checkout", "--quiet", "ada")
+	merge := exec.Command("git", "merge", "--no-edit", "berk")
+	merge.Dir = repo
+	mergeOut, mergeErr := merge.CombinedOutput()
+
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading the merged ticket: %v", err)
+	}
+	got := string(b)
+	if strings.Contains(got, "<<<<<<<") {
+		t.Fatalf("conflict markers would blank the card on every board:\n%s", got)
+	}
+	if !strings.Contains(got, "status: todo") {
+		t.Errorf("the other side's lane was lost — the silent failure this test exists for.\ngit said: %s\nfile:\n%s", mergeOut, got)
+	}
+	for _, tag := range []string{"concurrency", "cli"} {
+		if !strings.Contains(got, tag) {
+			t.Errorf("tag %q was lost:\n%s", tag, got)
+		}
+	}
+	if mergeErr != nil {
+		// git still reports add/add as needing a commit; what matters is that
+		// the file it left behind is the field-aware merge, not one side.
+		t.Logf("git reported the add/add path as conflicted (expected): %s", mergeOut)
+	}
+}
