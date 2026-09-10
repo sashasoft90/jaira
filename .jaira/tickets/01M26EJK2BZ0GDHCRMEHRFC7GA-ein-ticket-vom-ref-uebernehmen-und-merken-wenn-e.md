@@ -1,7 +1,7 @@
 ---
 id: 01M26EJK2BZ0GDHCRMEHRFC7GA
 title: "Ein Ticket vom Ref uebernehmen, und merken wenn es die Tafel verlassen hat"
-status: in-progress
+status: human
 ready: true
 creator: Alexander Sacharov
 goal: "Ein Ticket lebt bis zur Uebernahme nur auf seinem Ref, und erst 'jaira pull' legt es hier als Datei hin - damit existiert es zu jeder Zeit in genau einem Klon und ein Merge kann es nicht doppeln"
@@ -27,13 +27,18 @@ tags:
   - concurrency
   - cli
 blocked-by: []
-commits: []
+commits:
+  - 2f5713f18c2fb6bec663c0329c29b27c9be563db
 created-at: 2026-09-10T20:01:34Z
-updated-at: 2026-09-10T20:55:50Z
+updated-at: 2026-09-10T20:56:23Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-373879
 claimed-at: 2026-09-10T20:17:44Z
 assignee: Alexander Sacharov
+question: "Alles aus der DoD steht und ist gegen echtes git belegt. Zwei Dinge fuer dich: (1) Nimmst du an, dass nichts still verschoben wird - ein woanders abgeraeumtes Ticket und eine Dublette zwischen Tafel und Logbuch werden nur gemeldet, mit dem Befehl der es aufloest? (2) PTQ3XT (Snapshot-Branch) ist jetzt der einzige offene Punkt der ganzen Konstruktion: soll ich direkt weitermachen, oder willst du erst diese vier Tickets abnehmen?"
+outcome-what: "jaira pull und release, das Ref als Speicherort bis zur Uebernahme, globaler Sammelpunkt fuer alle Lesekommandos, Dublettenpruefung ueber tickets/logbook/archive, Abgangsmeldung in fetch und validate, README mit Sequenzdiagramm"
+outcome-why: "Ein Ticket existierte in mehreren Klonen als Datei, und der Merge konnte es doppeln - closed im Logbuch, offen auf der Tafel. Jetzt existiert es zu jeder Zeit in genau einem Klon, weil die Uebernahme ein Compare-and-Swap aufs Ref ist"
+outcome-resolves: "Die DoD ist Punkt fuer Punkt belegt: pull mit CAS und assignee-Waechter (Verlierer bekommt keine Datei), create schreibt auf einem Board mit Remote nur das Ref, fetch bleibt reines Lesen, ein Board ohne Remote ist unveraendert und die Verzweigung steht an einer Stelle (cli.fileOnRefOnly), ein verschwundenes Ref wird gemeldet und nie still verschoben, Dubletten werden ueber alle drei Verzeichnisse erkannt, und die README-Zeile ueber 'clone and see the same board' ist auf 'clone, jaira fetch' korrigiert"
 ---
 
 # Ein Ticket vom Ref uebernehmen, und merken wenn es die Tafel verlassen hat
@@ -119,3 +124,18 @@ Gefunden beim Durchgehen ALLER Kommandos gegen ein Board, dessen Tickets nur auf
 Achtung fuer spaeter, das ist die Lehre: Load darf nicht mehr als 'ist es hier' gelesen werden. Wer einen Pfad braucht, muss ihn ueber die Dateinamen holen. Der Typ traegt das jetzt: Ticket.ReadOnly.
 
 Ergebnis des Audits: alle Lesekommandos sehen die Tickets, alle Schreibkommandos verweigern mit exit 3 und einem Satz, der den naechsten Schritt nennt.
+- **2026-09-10 20:56 · Alexander Sacharov** — Alles aus der Definition of Done steht. Was beim Bauen gefunden wurde und im Entwurf nicht stand, in der Reihenfolge des Gewichts:
+
+1. CAS sichert das Uebernehmen nicht. Der Waechter ist der assignee auf dem Ref; das CAS deckt nur den Fall 'zwei lesen im selben Moment ein unbesetztes Ticket'. Der Test hat das sofort gezeigt, der Entwurf hatte es falsch.
+
+2. Der Sammelpunkt musste global werden, sonst waren list und next auf einem frisch geklonten Board blind - 'No tickets match' bei voller Tafel. Loesung symmetrisch zum Schreiben: Store.Source neben Store.Recorder, erfuellt von core/refsync.
+
+3. Genau daraus folgte die naechste Falle: Store.Load heisst seither nicht mehr 'ist es hier'. Es hat pull kaputt gemacht (hielt jedes Ref fuer 'schon hier'), und dieselbe Falle steckte in Release und Reconcile. Wer einen Pfad braucht, holt ihn ueber die Dateinamen (localPath). Der Typ traegt es jetzt: Ticket.ReadOnly.
+
+4. Der Audit ueber ALLE Kommandos hat drei Fehler vom Typ 'leerer Pfad' gefunden: archive, delete und logbook nahmen t.Path, filepath.Base("") ist ".", und archive antwortete mit 'archive already exists in the archive'. Jetzt eine Pruefung in genau diesen drei Funktionen.
+
+5. Der Fetch, der einen Abgang melden soll, hat die einzige Evidenz vorher ueberschrieben. Ein verschwundenes Ref bleibt jetzt im seen-Register, solange die Datei da ist - unerledigt, nicht Geschichte.
+
+Was absichtlich NICHT gemacht wurde: nichts wird still verschoben. Weder ein Ticket, das woanders abgeraeumt wurde, noch eine Dublette zwischen Tafel und Logbuch. Beides wird gemeldet mit dem Befehl, der es aufloest, weil ein Werkzeug, das hier raet, irgendwann fertige Arbeit wieder oeffnet.
+
+Offen fuer PTQ3XT und nicht hier: der Snapshot-Branch. Solange er fehlt, liegt ein unberuehrter Backlog nur auf dem Remote - das ist Preis 2 aus dem Kontext, bewusst so, aber es sollte nicht lange so bleiben.
