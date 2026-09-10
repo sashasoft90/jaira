@@ -13,6 +13,11 @@ Format rules — read before editing:
     not a record of what commit did what.
 -->
 
+## 0.1.2
+
+- Look for the running version in the top-left corner of the board and the launcher; the footer no longer carries it, so a script or a screenshot that read the last line for it must read the first instead.
+- A source build now names itself `jaira dev` in that corner instead of staying silent, so you can tell which binary is running when several are installed — this deliberately reverses the 0.1.1 rule that the line only speaks when it can name a release.
+
 ## 0.1.1
 
 - Tickets carry `tags`: run `jaira tags` FIRST to see the board's vocabulary and reuse a name for that subject rather than inventing a synonym, then `jaira tag <id> <name>...` or `jaira create --tag <name>`; filter with `jaira list --tag <name>` or `tag:<name>` in the board's `/` filter, and hand-edit the shared colours in `.jaira/tags`.
