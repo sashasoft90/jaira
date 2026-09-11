@@ -1,7 +1,7 @@
 ---
 id: 01M26DTCJ9EZ631S0NFVNQCKF5
 title: "Ein add/add-Merge verliert die andere Seite, weil die leere Basis abgelehnt wird"
-status: human
+status: review
 ready: true
 creator: Alexander Sacharov
 goal: "Zwei Branches, die dieselbe Ticketdatei anlegen, mergen feldweise wie zwei Branches, die sie aendern - ohne dass eine Seite still verschwindet"
@@ -20,7 +20,7 @@ blocked-by: []
 commits:
   - 68aae28834ff19a76ff59b0010771567258ae872
 created-at: 2026-09-10T19:48:21Z
-updated-at: 2026-09-10T19:51:39Z
+updated-at: 2026-09-11T06:34:52Z
 claimed-by: DESKTOP-RFTCH11-353175
 claimed-at: 2026-09-10T19:48:30Z
 updated-by: Alexander Sacharov

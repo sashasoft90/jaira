@@ -1,7 +1,7 @@
 ---
 id: 01M26F9333EWZS2TN8EHPTQ3XT
 title: "Ein Snapshot-Branch traegt die Tafel als Dateien, ohne dass jemand ihn auscheckt"
-status: human
+status: review
 ready: true
 creator: Alexander Sacharov
 goal: "Ein elternloser Branch jaira/board haelt zu jedem Zeitpunkt genau die Tickets, die gerade auf Refs liegen, wird per Plumbing ohne Checkout geschrieben und kann nie mit den Arbeitsdateien kollidieren"
@@ -29,7 +29,7 @@ blocked-by: []
 commits:
   - fe864ec705086aafcd4b16fab0556d9dd2c3ceb7
 created-at: 2026-09-10T20:13:52Z
-updated-at: 2026-09-10T21:20:29Z
+updated-at: 2026-09-11T06:35:00Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-447398
 claimed-at: 2026-09-10T21:07:00Z

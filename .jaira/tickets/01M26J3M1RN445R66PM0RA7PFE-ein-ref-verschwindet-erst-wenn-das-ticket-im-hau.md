@@ -1,7 +1,7 @@
 ---
 id: 01M26J3M1RN445R66PM0RA7PFE
 title: "Ein Ref verschwindet erst, wenn das Ticket im Hauptbranch angekommen ist"
-status: human
+status: review
 ready: true
 creator: Alexander Sacharov
 goal: "Zwischen 'ins Logbuch gelegt' und 'im Hauptbranch angekommen' bleibt das Ticket fuer alle sichtbar, damit niemand dasselbe Problem ein zweites Mal aufschreibt"
@@ -24,7 +24,7 @@ blocked-by: []
 commits:
   - fe864ec705086aafcd4b16fab0556d9dd2c3ceb7
 created-at: 2026-09-10T21:03:18Z
-updated-at: 2026-09-11T06:29:53Z
+updated-at: 2026-09-11T06:35:03Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-447398
 claimed-at: 2026-09-10T21:07:14Z

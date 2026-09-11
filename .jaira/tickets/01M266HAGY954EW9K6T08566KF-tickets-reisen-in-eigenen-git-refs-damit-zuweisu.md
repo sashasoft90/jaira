@@ -1,7 +1,7 @@
 ---
 id: 01M266HAGY954EW9K6T08566KF
 title: "Tickets reisen in eigenen Git-Refs, damit Zuweisungen ohne gemeinsamen Branch ankommen"
-status: human
+status: review
 ready: true
 creator: Alexander Sacharov
 goal: "Ein Ticket und sein Besitzer erreichen den Kollegen ueber refs/jaira/tickets/<id>, ohne dass ein Branch geteilt oder gemergt werden muss, und eine Zuweisung loest bei ihm eine Benachrichtigung aus"
@@ -14,7 +14,7 @@ blocked-by: []
 commits:
   - ec8c7e2b0e293869e0b84b3019a6b4d0fd4bc0aa
 created-at: 2026-09-10T17:41:04Z
-updated-at: 2026-09-10T19:28:38Z
+updated-at: 2026-09-11T06:35:07Z
 assignee: Alexander Sacharov
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-244146

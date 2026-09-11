@@ -1,7 +1,7 @@
 ---
 id: 01M26EJK2BZ0GDHCRMEHRFC7GA
 title: "Ein Ticket vom Ref uebernehmen, und merken wenn es die Tafel verlassen hat"
-status: human
+status: review
 ready: true
 creator: Alexander Sacharov
 goal: "Ein Ticket lebt bis zur Uebernahme nur auf seinem Ref, und erst 'jaira pull' legt es hier als Datei hin - damit existiert es zu jeder Zeit in genau einem Klon und ein Merge kann es nicht doppeln"
@@ -30,7 +30,7 @@ blocked-by: []
 commits:
   - 2f5713f18c2fb6bec663c0329c29b27c9be563db
 created-at: 2026-09-10T20:01:34Z
-updated-at: 2026-09-10T20:56:23Z
+updated-at: 2026-09-11T06:34:56Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-373879
 claimed-at: 2026-09-10T20:17:44Z

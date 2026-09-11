@@ -1,7 +1,7 @@
 ---
 id: 01M27JJ75T5PBP44D4DCPP5SCQ
 title: "Auch wer nur die CLI benutzt, bekommt die Refs ohne danach zu fragen"
-status: in-progress
+status: human
 ready: true
 creator: Alexander Sacharov
 goal: "Ein Ticket, das mir jemand zuweist, erreicht mich auch dann, wenn ich das Board nie oeffne und nur lesende Kommandos benutze - ohne dass ein einziges Kommando auf das Netz wartet"
@@ -18,13 +18,18 @@ tags:
   - cli
   - concurrency
 blocked-by: []
-commits: []
+commits:
+  - d879a7a2408c86429b376bc4a11906a9ebf91547
 created-at: 2026-09-11T06:30:31Z
-updated-at: 2026-09-11T06:34:31Z
+updated-at: 2026-09-11T06:34:48Z
 claimed-by: DESKTOP-RFTCH11-13032
 claimed-at: 2026-09-11T06:30:57Z
 updated-by: Alexander Sacharov
 assignee: Alexander Sacharov
+question: "Fertig: nach jedem Kommando - auch einem lesenden - wird ein abgekoppelter Fetch gestartet, wenn der letzte aelter als zehn Minuten ist. list bleibt gemessen bei 0,02 s. Passt das Intervall, oder lieber fuenf Minuten?"
+outcome-what: "core/bgrun als gemeinsame Stelle fuer Hintergrundlaeufe, core/refsync FetchTask, Aufruf nach jedem Kommando"
+outcome-why: "Wer nur die CLI benutzt und nur liest, hat nie gefetcht - fuer den existierte eine Zuweisung nicht, bis er von Hand 'jaira fetch' tippte"
+outcome-resolves: "Alle vier Punkte der DoD: der Fetch laeuft nach jedem Kommando abgekoppelt und nur wenn faellig, das Muster steht an einer Stelle die Snapshot und Fetch teilen, JAIRA_NO_FETCH=1 schaltet ab und ist zugleich der Rekursionsschutz, und fuenf Tests decken faellig/nicht faellig, den Ausschalter, einen kaputten Stempel und 'Stempel vor dem Lauf' ab"
 ---
 
 # Auch wer nur die CLI benutzt, bekommt die Refs ohne danach zu fragen
