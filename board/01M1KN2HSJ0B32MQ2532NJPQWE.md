@@ -1,7 +1,7 @@
 ---
 id: 01M1KN2HSJ0B32MQ2532NJPQWE
 title: "Jede Karte traegt eine Box, auch ohne Tag"
-status: signoff
+status: done
 ready: true
 creator: BeMuCa
 assignee: BeMuCa
@@ -10,9 +10,22 @@ context: "Berk am 03.09. mit Screenshot der Backlog-Spalte: tag-lose Karten (F7K
 definition-of-done: "Jede Karte ist umrandet (Tag-Farbe wenn vorhanden, sonst neutral); das Kartenbudget rechnet mit der einheitlichen Hoehe; Tests decken geboxte Karten mit und ohne Tag; go test ./... -race gruen"
 tags: []
 blocked-by: []
-commits: []
+commits:
+  - 84c13ca2585994d065cae1bd5b6955858a578e3d
+  - a3aca3ad9b66f39e75286b61244ff608ebca09d1
+  - 516160715f04ee7989c66312d50daa73655d102d
+  - eb269d13eae56c5f4867f417e3ac2abee07bf6bc
+  - 9f96e1bb4a5cecd15702e404e33c9c1f3865d707
+  - 9b342506551e1d032e33f4b1a581fb73cb86f4e2
+  - 4cf02494cf6622760d4a68b1cdf9079dfb1684fa
+  - 52732e16cd22612779fe5de1ffd097a550b7ffd3
+  - 842e83709fe6b40494b39217b4cda2fb49b00046
+  - 35f54ac070a2261875b0dc52edf882593270542c
+  - 60808430b77f92cf70be676dad6ba85e632ee248
+  - 6bd21c73399d119c3edd146759e47737c2828ef0
+  - b36161b310fb80ef438c33fd1cbb0e881979a9ab
 created-at: 2026-09-03T12:49:35Z
-updated-at: 2026-09-11T15:53:22Z
+updated-at: 2026-09-11T16:04:56Z
 claimed-by: EE-3NX6GL3-2382606
 claimed-at: 2026-09-03T12:49:52Z
 updated-by: Alexander Sacharov
