@@ -13,7 +13,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T20:08:36Z
-updated-at: 2026-09-11T20:44:04Z
+updated-at: 2026-09-11T20:44:14Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-1258931
 claimed-at: 2026-09-11T20:08:53Z
@@ -41,3 +41,4 @@ outcome-resolves: "Die ausgewaehlte Karte traegt den Ton ihres Tags, keine der a
 ## Progress
 - **2026-09-11 20:09 · Alexander Sacharov** — Die Messung, auf der die zwei Mischwerte beruhen, steht im Context und ist der eigentliche Inhalt des Tickets - ohne sie sieht 15% wie eine Geschmacksfrage aus und jemand stellt es spaeter 'leiser', womit die Tag-Farbe auf jedem Palette-Terminal still verschwindet. Das Skript, das die Tabelle erzeugt hat, lag unter scratchpad/whichtints und ist nicht eingecheckt; die Rechnung steht jetzt als Test da (TestGlowKeepsItsColourOnAPaletteTerminal), was der bessere Ort ist.
 - **2026-09-11 20:44 · Alexander Sacharov** — Angenommen von Alex am 11.09. im Gespraech, Stueck fuer Stueck im laufenden Board angesehen. Die review-Lane wurde dabei uebersprungen, und das ist eine bewusste Luecke, keine erledigte Stufe: review heisst 'ein zweites Modell hat den Diff beurteilt', und der Autor des Codes war dasselbe Modell, das ihn haette pruefen sollen. Was stattfand, war menschliche Abnahme am laufenden Bild, nicht Modell-Review. Wer spaeter einen Fehler in diesen drei Tickets sucht: hier ist die Stelle, an der niemand mit frischen Augen draufgeschaut hat.
+- **2026-09-11 20:44 · Alexander Sacharov** — Die offene Frage dieses Tickets - bleibt es bei 15% auf 24-Bit-Terminals - ist beantwortet: ja. Alex am 11.09.: '15% на truecolor иначе не видно'. glowMix256 bleibt bei 45% und darf nicht mitgezogen werden.
