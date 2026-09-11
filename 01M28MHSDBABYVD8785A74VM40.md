@@ -21,7 +21,9 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T16:24:28Z
-updated-at: 2026-09-11T16:24:28Z
+updated-at: 2026-09-11T16:24:39Z
+assignee: Alexander Sacharov
+updated-by: Alexander Sacharov
 ---
 
 # Das Logbuch wird abgelegt, wenn ein Mensch es sagt, nicht wenn ein Ticket fertig wird
