@@ -24,7 +24,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T19:26:01Z
-updated-at: 2026-09-11T19:44:15Z
+updated-at: 2026-09-11T19:44:18Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-1116663
 claimed-at: 2026-09-11T19:26:19Z
@@ -38,6 +38,9 @@ body: |-
   - [ ] test: after a stamped run in worktree A, snapshot.Due is false in worktree B
   - [ ] note in core/release/NOTES.md that the snapshot and fetch clocks are now shared per clone
   - [ ] go test ./... -race
+outcome-what: "Keyed the snapshot and fetch stamps by repository: Store.RepoStateDir (core/ticket/store.go) resolves git rev-parse --git-common-dir and keys ~/.jaira/repo/<key> by it, while StateDir stays per working tree; internal/cli/snapshot.go and internal/cli/refs.go spawn against it."
+outcome-why: "A git worktree is a new path, so it got a new state dir with no stamp, and bgrun.Due read a missing stamp as never-ran and fired at once — every worktree-agent-* took a full snapshot on its first command, turning a 72h backup into a commit every 20 minutes."
+outcome-resolves: "jaira/board gets one snapshot per clone per interval; sessions, locks, outbox and refs-seen stay per checkout; four tests in core/ticket/statedir_test.go cover the shared clock, the per-tree split, two clones and the no-git fallback; go test ./... -race green."
 ---
 
 # Snapshot and fetch stamps are per worktree, so every new worktree snapshots at once
