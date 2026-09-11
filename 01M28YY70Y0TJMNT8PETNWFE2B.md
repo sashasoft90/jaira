@@ -1,7 +1,7 @@
 ---
 id: 01M28YY70Y0TJMNT8PETNWFE2B
 title: "Snapshot and fetch stamps are per worktree, so every new worktree snapshots at once"
-status: in-progress
+status: review
 ready: true
 creator: Alexander Sacharov
 assignee: Alexander Sacharov
@@ -24,7 +24,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T19:26:01Z
-updated-at: 2026-09-11T19:44:18Z
+updated-at: 2026-09-11T19:44:28Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-1116663
 claimed-at: 2026-09-11T19:26:19Z
