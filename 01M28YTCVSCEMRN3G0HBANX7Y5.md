@@ -1,7 +1,7 @@
 ---
 id: 01M28YTCVSCEMRN3G0HBANX7Y5
 title: Die ausgewaehlte Karte ist gefuellt und oben geschlossen
-status: backlog
+status: in-progress
 ready: true
 creator: Alexander Sacharov
 assignee: Alexander Sacharov
@@ -24,7 +24,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T19:23:56Z
-updated-at: 2026-09-11T19:26:01Z
+updated-at: 2026-09-11T19:26:06Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-1114279
 claimed-at: 2026-09-11T19:25:39Z
