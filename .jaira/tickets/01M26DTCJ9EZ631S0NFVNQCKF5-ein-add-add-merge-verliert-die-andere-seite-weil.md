@@ -1,7 +1,7 @@
 ---
 id: 01M26DTCJ9EZ631S0NFVNQCKF5
 title: "Ein add/add-Merge verliert die andere Seite, weil die leere Basis abgelehnt wird"
-status: review
+status: human
 ready: true
 creator: Alexander Sacharov
 goal: "Zwei Branches, die dieselbe Ticketdatei anlegen, mergen feldweise wie zwei Branches, die sie aendern - ohne dass eine Seite still verschwindet"
@@ -20,15 +20,19 @@ blocked-by: []
 commits:
   - 68aae28834ff19a76ff59b0010771567258ae872
 created-at: 2026-09-10T19:48:21Z
-updated-at: 2026-09-11T06:34:52Z
-claimed-by: DESKTOP-RFTCH11-353175
-claimed-at: 2026-09-10T19:48:30Z
+updated-at: 2026-09-11T11:24:58Z
+claimed-by: DESKTOP-RFTCH11-147473
+claimed-at: 2026-09-11T11:24:06Z
 updated-by: Alexander Sacharov
 assignee: Alexander Sacharov
 question: "Fix steht und ist gegen echtes git belegt. Bleibt die Frage aus 8566KF: soll ein per Ref empfangenes Ticket lokal als Datei landen (dann ist es eine normale Karte in list, show, claim, move) oder als read-only Karte ohne Datei angezeigt werden?"
-outcome-what: core/merge behandelt eine leere Basis als abwesenden Vorfahren statt sie abzulehnen
-outcome-why: "Beim add/add-Merge zweier Branches an derselben Ticketdatei verlor die andere Seite still ihre Lane - ohne Konfliktmarker, also aussehend wie ein sauberer Merge"
-outcome-resolves: "Alle vier DoD-Punkte belegt: leere und Leerraum-Basis akzeptiert, add/add laeuft ohne Marker durch mit weiterer Lane und vereinigten Listen, Prosa bleibt echter Konflikt, und ein Test gegen echtes git deckt genau den add/add-Fall ab"
+outcome-what: "ревью подтвердило diff против DoD, дефектов не найдено"
+outcome-why: "второй проход модели пройден, ждём человека для приёмки"
+outcome-resolves: "все 4 пункта DoD проверены построчно и тестами, go build и оба новых теста PASS"
+review-summary: "core/merge.Merge (core/merge/merge.go:87-91) заменяет пустую или состоящую только из пробелов базу на минимальный валидный документ '---\\n---\\n' перед ParseDoc, вместо того чтобы отклонять её ошибкой. Раз база теперь парсится как документ без полей, дальше срабатывают уже существующие правила трёхстороннего слияния как для поля, не унаследованного ни одной стороной: mergeStatus сравнивает через Precedence и берёт более дальнюю lane, mergeList объединяет списки (tags/blocked-by/commits), а mergeScalar для прозы (goal/context/dod/...) при расхождении обеих сторон создаёт настоящий конфликт (conflict-theirs-<field>). Добавлены unit-тест в core/merge/merge_test.go (эмулирует пустую/пробельную базу напрямую) и интеграционный тест в internal/cli/mergebranches_test.go, который реально собирает бинарь, создаёт add/add конфликт через git и проверяет итоговый файл."
+review-gaps: none
+review-verdict: "Диф закрывает все 4 пункта DoD: пустая/пробельная база принимается (core/merge/merge.go:87-91), add/add merge проходит без маркеров конфликта с сохранением дальней lane и объединением списков (подтверждено TestAnEmptyBaseIsAnAbsentAncestorNotABrokenFile и TestTwoBranchesThatBothCreateTheTicketStillMergeFieldAware), расходящаяся проза остаётся настоящим конфликтом в conflict-theirs-<field> (тест на поле goal), и тест против настоящего git есть. Локально прогнал go build ./... (чисто) и оба новых теста — оба PASS. Изменение точечное, использует уже существующую инфраструктуру слияния без новых спецслучаев в driver'е, как и было заявлено в outcome. Дефектов не нашёл."
+review-check: "1. cd /home/alex/projects/jaira 2. go test ./core/merge/... -run TestAnEmptyBaseIsAnAbsentAncestorNotABrokenFile -v — должен быть PASS, это прямой тест на пустую/пробельную базу и на конфликт по прозе (поле goal) 3. go test ./internal/cli/... -run TestTwoBranchesThatBothCreateTheTicketStillMergeFieldAware -v — собирает реальный бинарь jaira, создаёт два branch (ada и berk), которые оба создают один и тот же ticket-файл (add/add конфликт), мержит их через настоящий git merge и проверяет итоговый файл 4. В выводе теста ищите: 'status: todo' в итоговом файле (дальняя lane выиграла, хотя у ady был более новый timestamp), оба тега 'concurrency' и 'cli' присутствуют (списки объединены), и отсутствие '<<<<<<<' (конфликтных маркеров) — все эти проверки уже есть внутри теста как t.Errorf/t.Fatalf, так что просто смотрите на PASS/FAIL"
 ---
 
 # Ein add/add-Merge verliert die andere Seite, weil die leere Basis abgelehnt wird
