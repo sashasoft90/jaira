@@ -1,7 +1,7 @@
 ---
 id: 01M26EJK2BZ0GDHCRMEHRFC7GA
 title: "Ein Ticket vom Ref uebernehmen, und merken wenn es die Tafel verlassen hat"
-status: review
+status: human
 ready: true
 creator: Alexander Sacharov
 goal: "Ein Ticket lebt bis zur Uebernahme nur auf seinem Ref, und erst 'jaira pull' legt es hier als Datei hin - damit existiert es zu jeder Zeit in genau einem Klon und ein Merge kann es nicht doppeln"
@@ -30,15 +30,24 @@ blocked-by: []
 commits:
   - 2f5713f18c2fb6bec663c0329c29b27c9be563db
 created-at: 2026-09-10T20:01:34Z
-updated-at: 2026-09-11T06:34:56Z
+updated-at: 2026-09-11T11:27:04Z
 updated-by: Alexander Sacharov
-claimed-by: DESKTOP-RFTCH11-373879
-claimed-at: 2026-09-10T20:17:44Z
+claimed-by: DESKTOP-RFTCH11-149957
+claimed-at: 2026-09-11T11:25:14Z
 assignee: Alexander Sacharov
 question: "Alles aus der DoD steht und ist gegen echtes git belegt. Zwei Dinge fuer dich: (1) Nimmst du an, dass nichts still verschoben wird - ein woanders abgeraeumtes Ticket und eine Dublette zwischen Tafel und Logbuch werden nur gemeldet, mit dem Befehl der es aufloest? (2) PTQ3XT (Snapshot-Branch) ist jetzt der einzige offene Punkt der ganzen Konstruktion: soll ich direkt weitermachen, oder willst du erst diese vier Tickets abnehmen?"
-outcome-what: "jaira pull und release, das Ref als Speicherort bis zur Uebernahme, globaler Sammelpunkt fuer alle Lesekommandos, Dublettenpruefung ueber tickets/logbook/archive, Abgangsmeldung in fetch und validate, README mit Sequenzdiagramm"
-outcome-why: "Ein Ticket existierte in mehreren Klonen als Datei, und der Merge konnte es doppeln - closed im Logbuch, offen auf der Tafel. Jetzt existiert es zu jeder Zeit in genau einem Klon, weil die Uebernahme ein Compare-and-Swap aufs Ref ist"
-outcome-resolves: "Die DoD ist Punkt fuer Punkt belegt: pull mit CAS und assignee-Waechter (Verlierer bekommt keine Datei), create schreibt auf einem Board mit Remote nur das Ref, fetch bleibt reines Lesen, ein Board ohne Remote ist unveraendert und die Verzweigung steht an einer Stelle (cli.fileOnRefOnly), ein verschwundenes Ref wird gemeldet und nie still verschoben, Dubletten werden ueber alle drei Verzeichnisse erkannt, und die README-Zeile ueber 'clone and see the same board' ist auf 'clone, jaira fetch' korrigiert"
+outcome-what: "Review-Pass gegen die DoD von RFC7GA abgeschlossen"
+outcome-why: "vier verbliebene Luecken aus dem Entwurf (stiller Steal, Dubletten ueber Verzeichnisse, verschwindendes Ref, Board-Karte statt Zaehler) code-seitig verifiziert, kein Defekt gefunden"
+outcome-resolves: "review-summary/review-gaps/review-verdict/review-check gesetzt, Ticket wartet auf menschliches Signoff"
+review-summary: "Vier Luecken aus dem Entwurf 8566KF/PP5SCQ geschlossen: (1) --steal ist nicht mehr still — core/refsync.Pull setzt beim Uebernehmen von jemand anderem eine Notiz auf das Ticket ('X took this ticket over from Y', ueber die neu extrahierte ticket.AppendNote) und core/refsync.Pulled traegt TakenFrom, das internal/cli/pull.go laut ausgibt. (2) core/ticket.Store.offBoardDuplicates vergleicht Ids jetzt auch gegen logbook/ und archive/, nicht nur innerhalb von tickets/, und meldet eine Dublette ueber PartialError mit beiden Fundorten und der Ansage 'nur du kannst sagen welches'. (3) Ein verschwundenes Ref, waehrend die Datei noch da ist, wird gemeldet statt verloren zu gehen: core/refsync.Departed vergleicht das seen-Register gegen die aktuellen Refs, und Incoming haelt einen verschwundenen Eintrag im seen-Register fest, solange die lokale Datei noch existiert — sonst haette der Fetch, der den Abgang melden soll, die einzige Evidenz vorher ueberschrieben. internal/cli/fetch.go und validate.go rufen Departed auf und drucken pro Ticket den Befehl, der es aufloest (logbook/archive/pull). (4) internal/tui zeigt ref-only Tickets jetzt als normale Karte mit einem 'pull'-Marker statt als blosse Zahl in der Statuszeile."
+review-gaps: "none — go build ./... und go test ./core/... ./internal/... laufen gruen (inkl. der 11 core/refsync- und 2 neuen core/ticket-Tests aus diesem Diff). Code-Lesung bestaetigt: fileOnRefOnly (internal/cli/refs.go) ist tatsaechlich die einzige Stelle, die zwischen den zwei Speichermodi entscheidet; die README-Zeile 'clone and see the same board' ist auf 'clone, jaira fetch' korrigiert (README.md:13); ForgetDeparted loescht den seen-Eintrag, sodass ein einmal behandelter Abgang nicht erneut gemeldet wird."
+review-verdict: "Der Diff erfuellt die Definition of Done Punkt fuer Punkt: pull/create/fetch-Trennung war bereits Stand von PP5SCQ, dieser Diff schliesst die drei verbliebenen Luecken (stiller Steal, Dubletten ueber Verzeichnisse, verschwindendes Ref) plus einen vierten, im Vorgaenger-Ticket zugesagten Punkt (Board-Karte statt Zaehler). Keine Defekte gefunden, alle Tests gruen."
+review-check: |-
+  1. cd /home/alex/projects/jaira und go test ./core/refsync/... ./core/ticket/... -run 'Steal|Departed|OffBoard|Duplicate' -v — zeigt TestStealingRecordsWhoItWasTakenFrom, TestATicketTakenOffTheBoardElsewhereIsReportedHere, TestATicketOnTheBoardAndInTheLogbookIsReported, TestATicketOnTheBoardAndInTheArchiveIsReported, alle PASS.
+  2. Fuer die Handprobe: zwei Klone eines Test-Repos mit Remote anlegen, in Klon A 'jaira create' ein Ticket, in Klon B 'jaira fetch' dann 'jaira pull <id>' — Ausgabe '<id> is yours'.
+  3. In Klon A danach 'jaira pull <id> --steal' — Ausgabe '<id> taken over from <B>' und die Ticketdatei enthaelt unter '## Progress' die Zeile '... took this ticket over from ...'.
+  4. In Klon B 'jaira fetch' — die Meldung nennt den Uebernehmer.
+  5. Fuer Dubletten: eine Ticketdatei sowohl unter .jaira/tickets/ als auch unter .jaira/logbook/<ordner>/ ablegen, dann 'jaira validate' oder 'jaira list' — Fehlermeldung nennt beide Fundorte und 'nur du kannst sagen welches'.
 ---
 
 # Ein Ticket vom Ref uebernehmen, und merken wenn es die Tafel verlassen hat
@@ -139,3 +148,4 @@ Ergebnis des Audits: alle Lesekommandos sehen die Tickets, alle Schreibkommandos
 Was absichtlich NICHT gemacht wurde: nichts wird still verschoben. Weder ein Ticket, das woanders abgeraeumt wurde, noch eine Dublette zwischen Tafel und Logbuch. Beides wird gemeldet mit dem Befehl, der es aufloest, weil ein Werkzeug, das hier raet, irgendwann fertige Arbeit wieder oeffnet.
 
 Offen fuer PTQ3XT und nicht hier: der Snapshot-Branch. Solange er fehlt, liegt ein unberuehrter Backlog nur auf dem Remote - das ist Preis 2 aus dem Kontext, bewusst so, aber es sollte nicht lange so bleiben.
+- **2026-09-11 11:27 · Alexander Sacharov** — Review gegen DoD: alle vier Punkte im Code verifiziert (nicht nur im Diff-Text) — fileOnRefOnly als einzige Verzweigung, README-Zeile korrigiert, Departed-Persistenz in Incoming, offBoardDuplicates ueber logbook+archive. go build und volle Testsuite gruen. Keine Gaps gefunden.
