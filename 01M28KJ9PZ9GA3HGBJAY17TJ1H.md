@@ -21,7 +21,9 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T16:07:16Z
-updated-at: 2026-09-11T16:07:16Z
+updated-at: 2026-09-11T16:09:41Z
+assignee: Alexander Sacharov
+updated-by: Alexander Sacharov
 ---
 
 # Das Board sendet, was es einreiht, und ein abgelegtes Ticket kommt nicht zurueck
