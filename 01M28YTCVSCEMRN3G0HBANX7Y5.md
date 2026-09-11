@@ -24,7 +24,8 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T19:23:56Z
-updated-at: 2026-09-11T19:23:56Z
+updated-at: 2026-09-11T19:25:37Z
+updated-by: Alexander Sacharov
 ---
 
 # Die ausgewaehlte Karte ist gefuellt und oben geschlossen
