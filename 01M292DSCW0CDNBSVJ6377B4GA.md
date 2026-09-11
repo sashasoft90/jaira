@@ -23,7 +23,8 @@ blocked-by: []
 related: []
 commits: []
 created-at: 2026-09-11T20:26:57Z
-updated-at: 2026-09-11T20:26:57Z
+updated-at: 2026-09-11T20:27:08Z
+updated-by: Alexander Sacharov
 ---
 
 # Der erste Schritt aus der Implementierung warnt, wenn kein DoD-Punkt abgehakt ist
