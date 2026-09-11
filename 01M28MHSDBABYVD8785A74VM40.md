@@ -21,9 +21,11 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T16:24:28Z
-updated-at: 2026-09-11T16:24:39Z
+updated-at: 2026-09-11T16:24:41Z
 assignee: Alexander Sacharov
 updated-by: Alexander Sacharov
+claimed-by: DESKTOP-RFTCH11-630371
+claimed-at: 2026-09-11T16:24:41Z
 ---
 
 # Das Logbuch wird abgelegt, wenn ein Mensch es sagt, nicht wenn ein Ticket fertig wird
