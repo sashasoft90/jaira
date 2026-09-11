@@ -24,7 +24,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T19:26:01Z
-updated-at: 2026-09-11T19:27:47Z
+updated-at: 2026-09-11T19:44:03Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-1116663
 claimed-at: 2026-09-11T19:26:19Z
@@ -56,4 +56,6 @@ body: |-
 <Steps, in order — filled in by the pre-process step, or by you.>
 
 ## Progress
+- **2026-09-11 19:44 · Alexander Sacharov** — core/ticket cannot import core/gitrepo: gitrepo/derive.go already imports core/ticket, so the obvious Repo.CommonDir helper is an import cycle. RepoStateDir therefore shells out to git itself in store.go (commonGitDir), which is ten lines and no new package edge. Rejected alternatives: reading .git by hand (a worktree points at the main checkout through a gitdir: file, a submodule points elsewhere again — a second, divergent resolver) and hanging the helper off core/gitrepo with a Store argument (inverts who owns the state-dir concept).
 
+Only the two background stamps moved. outbox, refs-seen, sessions and locks stay per working tree on purpose: those are about in-flight work in this checkout, not about the board.
