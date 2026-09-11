@@ -24,10 +24,13 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T19:23:56Z
-updated-at: 2026-09-11T19:26:06Z
+updated-at: 2026-09-11T19:29:36Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-1114279
 claimed-at: 2026-09-11T19:25:39Z
+outcome-what: "Die ausgewaehlte Karte wird ganzflaechig gefuellt, Rahmen eingeschlossen, einen 256-Farben-Schritt neben dem Terminalhintergrund; die geteilte Border-Reihe gehoert jetzt der ausgewaehlten Karte statt der Karte darueber"
+outcome-why: "Auf einer vollen Spalte war der fette Titel als einziges Auswahlmerkmal nicht zu finden, weil jede Karte ohnehin eine Tag-Farbe im Rahmen traegt; und ohne die geteilte Reihe war die Auswahl oben offen, die Fuellung begann mitten im Kasten"
+outcome-resolves: "Der Cursor ist ohne Lesen zu finden, und die Auswahl ist an allen vier Seiten geschlossen, egal an welcher Stelle der Spalte sie steht"
 ---
 
 # Die ausgewaehlte Karte ist gefuellt und oben geschlossen
