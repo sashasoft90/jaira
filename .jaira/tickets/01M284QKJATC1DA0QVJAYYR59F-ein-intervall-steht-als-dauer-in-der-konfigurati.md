@@ -1,7 +1,7 @@
 ---
 id: 01M284QKJATC1DA0QVJAYYR59F
 title: "Ein Intervall steht als Dauer in der Konfiguration, und das Board haelt sich daran"
-status: in-progress
+status: human
 ready: true
 creator: Alexander Sacharov
 goal: "Wie oft im Hintergrund gefetcht wird, steht an einer Stelle und gilt fuer CLI und Board gleichermassen - und laesst sich fuer eine Vorfuehrung auf Sekunden stellen"
@@ -17,13 +17,18 @@ definition-of-done: "die drei Intervalle stehen als Dauer in settings.json ('fet
 tags:
   - cli
 blocked-by: []
-commits: []
+commits:
+  - 22abcfdf2699b5047de0c9e093150350c3140060
 created-at: 2026-09-11T11:48:02Z
-updated-at: 2026-09-11T11:52:12Z
+updated-at: 2026-09-11T11:52:26Z
 claimed-by: DESKTOP-RFTCH11-193636
 claimed-at: 2026-09-11T11:48:26Z
 updated-by: Alexander Sacharov
 assignee: Alexander Sacharov
+question: "Zwei Sachen: (1) die drei Intervalle heissen jetzt fetch-every, snapshot-every und landing-grace und sind Dauern - passt das, bevor es veroeffentlicht ist? (2) eine Zuweisung, die im Hintergrund ankommt, steht 30 Sekunden als Zeile auf dem Board statt als Bildschirm zum Wegdruecken - reicht dir das, oder soll sie laenger stehen?"
+outcome-what: "drei Intervalle als Dauer in settings.json, das TUI liest dieselbe Einstellung wie die CLI, und eine Ankunft meldet sich als Zeile statt als Bildschirm"
+outcome-why: "Das Board hatte eine eigene, fest eingebaute Minute und las die Einstellung nicht - und eine im Hintergrund ankommende Zuweisung nahm den Bildschirm weg, mitten in der Arbeit"
+outcome-resolves: "Die DoD Punkt fuer Punkt: die drei Intervalle sind Dauern (time.ParseDuration, also 3s und 72h gleich gesagt), ein unlesbarer Wert faellt auf den Default statt das Board zu verweigern, das TUI benutzt settings.FetchInterval statt einer Konstante, und drei Tests decken Default, gueltige Dauer und Unsinn ab"
 ---
 
 # Ein Intervall steht als Dauer in der Konfiguration, und das Board haelt sich daran
