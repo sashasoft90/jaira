@@ -1,7 +1,7 @@
 ---
 id: 01M2943H9MEYF2723ZSVJNYE3T
 title: Tests write their state into the real ~/.jaira
-status: in-progress
+status: review
 ready: true
 creator: Alexander Sacharov
 assignee: Alexander Sacharov
@@ -20,10 +20,13 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T20:56:18Z
-updated-at: 2026-09-11T21:00:33Z
+updated-at: 2026-09-11T21:00:43Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-1358160
 claimed-at: 2026-09-11T20:56:31Z
+outcome-what: internal/cli now has a TestMain (internal/cli/main_test.go) that points JAIRA_HOME at a temp directory for the whole package and removes it afterwards. Swept ~/.jaira/state of every directory holding no regular file.
+outcome-why: "Tests that opened a store without setting JAIRA_HOME wrote sessions/ and locks/ into the real ~/.jaira, keyed by a t.TempDir() path that stops existing when the test ends: 34 per run of that package, 3115 collected on this machine, burying the two dozen entries that belong to real checkouts."
+outcome-resolves: "A per-package scan that counts ~/.jaira/state before and after each package now reports no growth anywhere; go test ./... green; ~/.jaira/state is down from 3173 directories and 38 MB to 23 and 636 KB, and the 23 are existing checkouts."
 ---
 
 # Tests write their state into the real ~/.jaira
