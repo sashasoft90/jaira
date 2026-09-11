@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -26,7 +27,10 @@ func TestTwoBranchesOnOneTicketMergeFieldAware(t *testing.T) {
 	t.Setenv("JAIRA_HOME", filepath.Join(root, "home"))
 
 	// The driver is an executable git invokes, so the test needs a real one.
-	bin := filepath.Join(root, "jaira")
+	// With the .exe on Windows: without it the file is built but exec cannot
+	// find it, and the failure reads as "executable file not found in %PATH%"
+	// rather than as the naming rule it is.
+	bin := filepath.Join(root, "jaira"+exeSuffix())
 	build := exec.Command("go", "build", "-o", bin, "github.com/BeMuCa/jaira/cmd/jaira")
 	build.Dir = repoRoot(t)
 	if out, err := build.CombinedOutput(); err != nil {
@@ -186,7 +190,7 @@ func TestTwoBranchesThatBothCreateTheTicketStillMergeFieldAware(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("JAIRA_HOME", filepath.Join(root, "home"))
 
-	bin := filepath.Join(root, "jaira")
+	bin := filepath.Join(root, "jaira"+exeSuffix())
 	build := exec.Command("go", "build", "-o", bin, "github.com/BeMuCa/jaira/cmd/jaira")
 	build.Dir = repoRoot(t)
 	if out, err := build.CombinedOutput(); err != nil {
@@ -264,4 +268,12 @@ func TestTwoBranchesThatBothCreateTheTicketStillMergeFieldAware(t *testing.T) {
 		// the file it left behind is the field-aware merge, not one side.
 		t.Logf("git reported the add/add path as conflicted (expected): %s", mergeOut)
 	}
+}
+
+// exeSuffix is what an executable has to be called on this platform.
+func exeSuffix() string {
+	if runtime.GOOS == "windows" {
+		return ".exe"
+	}
+	return ""
 }
