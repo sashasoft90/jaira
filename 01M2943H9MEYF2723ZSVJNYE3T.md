@@ -1,7 +1,7 @@
 ---
 id: 01M2943H9MEYF2723ZSVJNYE3T
 title: Tests write their state into the real ~/.jaira
-status: review
+status: signoff
 ready: true
 creator: Alexander Sacharov
 assignee: Alexander Sacharov
@@ -20,7 +20,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T20:56:18Z
-updated-at: 2026-09-11T21:01:14Z
+updated-at: 2026-09-11T21:01:21Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-1358160
 claimed-at: 2026-09-11T20:56:31Z
