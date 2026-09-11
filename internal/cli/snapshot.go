@@ -54,7 +54,7 @@ is older than three days.`,
 			runner := snapshotRunner()
 
 			if drop != "" {
-				id := ticket.NormalizeIDPrefix(drop)
+				id := resolveID(s, drop)
 				if err := runner.Drop(id); err != nil {
 					return err
 				}

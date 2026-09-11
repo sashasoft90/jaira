@@ -32,15 +32,17 @@ A ticket that is not yours is refused, naming who has it; --force releases it
 anyway, for the case where that person is not coming back.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if _, err := openStore(); err != nil {
+			s, err := openStore()
+			if err != nil {
 				return err
 			}
 			if err := refs.Usable(); err != nil {
 				return fail(ExitError, "no_remote",
 					"this board does not carry tickets on refs: %v", err)
 			}
-			id := ticket.NormalizeIDPrefix(args[0])
-			got, err := refs.Release(id, force)
+			id := resolveID(s, args[0])
+			got, relErr := refs.Release(id, force)
+			err = relErr
 			if errors.Is(err, refsync.ErrTaken) {
 				who := "somebody else has it"
 				if got != nil && got.NotYours != nil {

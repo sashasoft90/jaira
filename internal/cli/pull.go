@@ -40,15 +40,17 @@ working offline but a consequence of it: with no route to the remote there is
 no ref to read, so there is nothing to take over.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if _, err := openStore(); err != nil {
+			s, err := openStore()
+			if err != nil {
 				return err
 			}
 			if err := refs.Usable(); err != nil {
 				return fail(ExitError, "no_remote",
 					"this board does not carry tickets on refs: %v", err)
 			}
-			id := ticket.NormalizeIDPrefix(args[0])
-			got, err := refs.Pull(id, steal)
+			id := resolveID(s, args[0])
+			got, pullErr := refs.Pull(id, steal)
+			err = pullErr
 
 			switch {
 			case errors.Is(err, refsync.ErrTaken):

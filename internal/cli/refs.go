@@ -122,6 +122,22 @@ func maybeFetch(s *ticket.Store) {
 	refs.SpawnFetch(s.StateDir(), s.Root, settings.Load().FetchEvery())
 }
 
+// resolveID turns whatever the user typed — a full id, a prefix, or the
+// six-character handle the board prints everywhere — into the full id.
+//
+// The ref commands need this and the others do not: every other command reaches
+// the ticket through the store, which resolves handles itself, while these
+// address a ref by name and a ref named after a handle does not exist. Written
+// as its own step rather than inside each command, because a handle failing for
+// three commands and working for twenty is worse than it failing for all of
+// them.
+func resolveID(s *ticket.Store, arg string) string {
+	if t, err := s.Load(arg); err == nil && t.ID != "" {
+		return t.ID
+	}
+	return ticket.NormalizeIDPrefix(arg)
+}
+
 // flushRefs sends what this command queued, and is called once after the
 // command has finished — including after it failed, because a ticket the
 // command did manage to write is a ticket the team should see.
