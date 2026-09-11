@@ -2,7 +2,7 @@
 id: 01M28KJ9PZ9GA3HGBJAY17TJ1H
 title: "Das Board sendet, was es einreiht, und ein abgelegtes Ticket kommt nicht zurueck"
 status: backlog
-ready: false
+ready: true
 creator: Alexander Sacharov
 goal: "Wer im Board arbeitet, sieht dieselbe Tafel wie alle anderen: was das Board schreibt geht raus, und was hier abgelegt wurde taucht nicht als Ref-Karte wieder auf"
 context: |-
@@ -21,7 +21,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T16:07:16Z
-updated-at: 2026-09-11T16:09:41Z
+updated-at: 2026-09-11T16:09:43Z
 assignee: Alexander Sacharov
 updated-by: Alexander Sacharov
 ---
@@ -30,7 +30,8 @@ updated-by: Alexander Sacharov
 
 ## Definition of Done
 
-- [ ] das Board sendet seine Warteschlange selbst: der Hintergrundlauf flusht vor dem Fetch, sodass eine im Board gemachte Aenderung ohne weiteres Kommando beim Team ankommt; refsync.Extra ueberspringt Ids, die hier im Logbuch oder Archiv liegen, sodass ein abgelegtes Ticket nicht als Ref-Karte zurueckkommt; Tests decken beides ab - eine Board-Schreibung erreicht das Remote ohne CLI-Aufruf, und ein abgelegtes Ticket verschwindet von der Tafel obwohl sein Ref noch steht
+- [x] das Board sendet seine Warteschlange selbst: der Hintergrundlauf flusht vor dem Fetch, sodass eine im Board gemachte Aenderung ohne weiteres Kommando beim Team ankommt; refsync.Extra ueberspringt Ids, die hier im Logbuch oder Archiv liegen, sodass ein abgelegtes Ticket nicht als Ref-Karte zurueckkommt; Tests decken beides ab - eine Board-Schreibung erreicht das Remote ohne CLI-Aufruf, und ein abgelegtes Ticket verschwindet von der Tafel obwohl sein Ref noch steht
+  proof: core/refsync/refsync.go: Extra ueberspringt FiledAwayIDs; internal/tui/refs.go: fetchRefs flusht vor dem Fetch; Tests TestAFiledTicketDoesNotComeBackAsARefCard und TestTheBoardSendsWhatItQueuedWithoutACommand
 
 ## Options
 
