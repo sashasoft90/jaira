@@ -32,7 +32,7 @@ func TestTheScriptIsToldWhatHappened(t *testing.T) {
 
 	ok := hook.Run(s, hook.Event{
 		Name: "claim", ID: "01AAA", Title: "session cookie dropped on 302",
-		Status: "in-progress", Assignee: "berk", Actor: "ada", Root: t.TempDir(),
+		Status: "in-progress", Assignee: "grace", Actor: "ada", Root: t.TempDir(),
 	})
 	if !ok {
 		t.Fatal("the hook did not run cleanly")

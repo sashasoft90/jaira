@@ -11,7 +11,7 @@ pause() { sleep $(echo "$P * ${1:-1}" | bc 2>/dev/null || echo 1); }
 
 R=$(mktemp -d); export JAIRA_HOME=$R/home
 git init -q --bare $R/board.git
-for n in ada berk; do
+for n in ada grace; do
   git clone -q $R/board.git $R/$n 2>/dev/null
   git -C $R/$n config user.name $n; git -C $R/$n config user.email $n@example.test
   $J -C $R/$n init >/dev/null
@@ -25,9 +25,9 @@ clear
 echo -e "\033[1mjaira: a ticket reaches a person over a git ref, with no shared branch\033[0m"
 pause 1.5
 
-who "ADA files a ticket for BERK"
+who "ADA files a ticket for GRACE"
 say "no server and no accounts — only the git remote that is already there"
-run ada "$J create 'session cookie dropped on 302' --goal 'the cookie survives the OAuth round-trip' --context 'reported in chat: Safari logs people out mid-flow' --dod 'session survives the redirect' --assignee berk"
+run ada "$J create 'session cookie dropped on 302' --goal 'the cookie survives the OAuth round-trip' --context 'reported in chat: Safari logs people out mid-flow' --dod 'session survives the redirect' --assignee grace"
 ID=$(cd $R/ada && $J list --json | grep -o '"id": "[^"]*"' | head -1 | cut -d'"' -f4)
 H=${ID: -6}
 
@@ -35,29 +35,29 @@ say "nothing on ADA's disk: the ticket lives on its own ref"
 run ada "ls .jaira/tickets/ | wc -l"
 run ada "git ls-remote origin 'refs/jaira/*'"
 
-who "BERK — another person, another clone"
+who "GRACE — another person, another clone"
 say "he has none of ADA's branches"
-run berk "git branch -a | wc -l"
-run berk "$J list"
+run grace "git branch -a | wc -l"
+run grace "$J list"
 say "one round trip to the remote, and the ticket is on his board"
-run berk "$J fetch"
+run grace "$J fetch"
 
 who "reading works, writing does not"
-run berk "$J note $H 'will start tomorrow'; echo exit=\$?"
+run grace "$J note $H 'will start tomorrow'; echo exit=\$?"
 say "because it is not his yet — there is no file here"
 
-who "BERK takes the ticket"
-run berk "$J pull $H"
+who "GRACE takes the ticket"
+run grace "$J pull $H"
 say "a compare-and-swap on the ref: exactly one clone can win"
-run berk "$J note $H 'looking at the redirect'"
+run grace "$J note $H 'looking at the redirect'"
 
 who "ADA tries the same ticket"
 run ada "$J fetch --quiet >/dev/null; $J pull $H; echo exit=\$?"
 run ada "ls .jaira/tickets/ | wc -l"
 say "the loser gets nothing at all — there is no second copy to duplicate"
 
-who "BERK hands it back"
-run berk "$J release $H"
+who "GRACE hands it back"
+run grace "$J release $H"
 say "and now anybody can take it"
 run ada "$J fetch --quiet >/dev/null; $J pull $H"
 

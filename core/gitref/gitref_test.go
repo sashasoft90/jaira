@@ -30,7 +30,7 @@ func twoClones(t *testing.T) (a, b *gitref.Repo) {
 		git(t, dir, "config", "user.email", name+"@example.test")
 		return &gitref.Repo{Dir: dir, Remote: "origin", AuthorName: name, AuthorEmail: name + "@example.test"}
 	}
-	return mk("ada"), mk("berk")
+	return mk("ada"), mk("grace")
 }
 
 func git(t *testing.T, dir string, args ...string) string {
@@ -53,15 +53,15 @@ const ticket = "---\nid: 01TEST\nstatus: in-progress\nassignee: ada\n---\n\n# A 
 // A ticket written by one person is readable by another who has none of their
 // branches — the property the whole feature exists for.
 func TestTicketArrivesWithoutASharedBranch(t *testing.T) {
-	ada, berk := twoClones(t)
+	ada, grace := twoClones(t)
 
 	if _, err := ada.Write("01TEST", []byte(ticket), ""); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	if err := berk.Fetch(); err != nil {
+	if err := grace.Fetch(); err != nil {
 		t.Fatalf("fetch: %v", err)
 	}
-	got, sha, err := berk.Read("01TEST")
+	got, sha, err := grace.Read("01TEST")
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestTicketArrivesWithoutASharedBranch(t *testing.T) {
 	if sha == "" {
 		t.Error("read returned no lease sha")
 	}
-	if out := git(t, berk.Dir, "branch", "--list", "--all"); strings.Contains(out, "jaira") {
+	if out := git(t, grace.Dir, "branch", "--list", "--all"); strings.Contains(out, "jaira") {
 		t.Errorf("the ref showed up as a branch: %q", out)
 	}
 }
@@ -80,33 +80,33 @@ func TestTicketArrivesWithoutASharedBranch(t *testing.T) {
 // as a race rather than as a transport failure, because the two need opposite
 // handling.
 func TestSecondWriterLosesTheRace(t *testing.T) {
-	ada, berk := twoClones(t)
+	ada, grace := twoClones(t)
 
 	if _, err := ada.Write("01TEST", []byte(ticket), ""); err != nil {
 		t.Fatalf("ada write: %v", err)
 	}
-	if err := berk.Fetch(); err != nil {
+	if err := grace.Fetch(); err != nil {
 		t.Fatalf("fetch: %v", err)
 	}
-	_, lease, err := berk.Read("01TEST")
+	_, lease, err := grace.Read("01TEST")
 	if err != nil {
-		t.Fatalf("berk read: %v", err)
+		t.Fatalf("grace read: %v", err)
 	}
 
-	// Ada moves the ticket again while Berk holds the older sha.
+	// Ada moves the ticket again while Grace holds the older sha.
 	if _, err := ada.Write("01TEST", []byte(strings.Replace(ticket, "in-progress", "review", 1)), mustSHA(t, ada, "01TEST")); err != nil {
 		t.Fatalf("ada second write: %v", err)
 	}
-	_, err = berk.Write("01TEST", []byte(strings.Replace(ticket, "ada", "berk", 1)), lease)
+	_, err = grace.Write("01TEST", []byte(strings.Replace(ticket, "ada", "grace", 1)), lease)
 	if !errors.Is(err, gitref.ErrRaceLost) {
 		t.Fatalf("want ErrRaceLost, got %v", err)
 	}
 
 	// And the remote still holds Ada's write, not a half-applied mixture.
-	if err := berk.Fetch(); err != nil {
+	if err := grace.Fetch(); err != nil {
 		t.Fatalf("re-fetch: %v", err)
 	}
-	got, lease2, err := berk.Read("01TEST")
+	got, lease2, err := grace.Read("01TEST")
 	if err != nil {
 		t.Fatalf("re-read: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestSecondWriterLosesTheRace(t *testing.T) {
 	}
 
 	// Re-reading is all it takes to take the ticket over.
-	if _, err := berk.Write("01TEST", []byte(strings.Replace(string(got), "assignee: ada", "assignee: berk", 1)), lease2); err != nil {
+	if _, err := grace.Write("01TEST", []byte(strings.Replace(string(got), "assignee: ada", "assignee: grace", 1)), lease2); err != nil {
 		t.Fatalf("takeover after re-read: %v", err)
 	}
 	if err := ada.Fetch(); err != nil {
@@ -125,7 +125,7 @@ func TestSecondWriterLosesTheRace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ada read: %v", err)
 	}
-	if !strings.Contains(string(back), "assignee: berk") {
+	if !strings.Contains(string(back), "assignee: grace") {
 		t.Errorf("takeover did not arrive:\n%s", back)
 	}
 }
@@ -133,12 +133,12 @@ func TestSecondWriterLosesTheRace(t *testing.T) {
 // The first write is a compare-and-swap too: two people creating the same
 // ticket id at once must not silently overwrite one another.
 func TestFirstWriteRefusesAnExistingRef(t *testing.T) {
-	ada, berk := twoClones(t)
+	ada, grace := twoClones(t)
 
 	if _, err := ada.Write("01TEST", []byte(ticket), ""); err != nil {
 		t.Fatalf("ada write: %v", err)
 	}
-	_, err := berk.Write("01TEST", []byte(ticket), "")
+	_, err := grace.Write("01TEST", []byte(ticket), "")
 	if !errors.Is(err, gitref.ErrRaceLost) {
 		t.Fatalf("want ErrRaceLost for a ref that already exists, got %v", err)
 	}
@@ -148,12 +148,12 @@ func TestFirstWriteRefusesAnExistingRef(t *testing.T) {
 // clone — otherwise the ticket is gone for its owner and immortal for everyone
 // else.
 func TestDeleteTakesTheTicketOffEveryBoard(t *testing.T) {
-	ada, berk := twoClones(t)
+	ada, grace := twoClones(t)
 
 	if _, err := ada.Write("01TEST", []byte(ticket), ""); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	if err := berk.Fetch(); err != nil {
+	if err := grace.Fetch(); err != nil {
 		t.Fatalf("fetch: %v", err)
 	}
 	if err := ada.Delete("01TEST", mustSHA(t, ada, "01TEST")); err != nil {
@@ -162,10 +162,10 @@ func TestDeleteTakesTheTicketOffEveryBoard(t *testing.T) {
 	if _, err := ada.SHA("01TEST"); !errors.Is(err, gitref.ErrNoRef) {
 		t.Errorf("local ref survived the delete: %v", err)
 	}
-	if err := berk.Fetch(); err != nil {
+	if err := grace.Fetch(); err != nil {
 		t.Fatalf("re-fetch: %v", err)
 	}
-	if _, err := berk.SHA("01TEST"); !errors.Is(err, gitref.ErrNoRef) {
+	if _, err := grace.SHA("01TEST"); !errors.Is(err, gitref.ErrNoRef) {
 		t.Errorf("the other clone still has the ref: %v", err)
 	}
 }

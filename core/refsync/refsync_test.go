@@ -27,7 +27,7 @@ type side struct {
 	dir    string
 }
 
-func twoSides(t *testing.T) (ada, berk side, remote string) {
+func twoSides(t *testing.T) (ada, grace side, remote string) {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is not on PATH")
@@ -55,7 +55,7 @@ func twoSides(t *testing.T) (ada, berk side, remote string) {
 		s.Recorder = y
 		return side{store: s, syncer: y, dir: dir}
 	}
-	return mk("ada"), mk("berk"), bare
+	return mk("ada"), mk("grace"), bare
 }
 
 // create files a ticket the way capture works: nobody owns it. A captured
@@ -81,7 +81,7 @@ func create(t *testing.T, s side, title string) string {
 // An ordinary ticket write now also travels to the remote, and arrives at
 // someone who has none of the writer's branches.
 func TestAWriteOnTheStoreReachesTheOtherClone(t *testing.T) {
-	ada, berk, _ := twoSides(t)
+	ada, grace, _ := twoSides(t)
 
 	id := create(t, ada, "session cookie dropped on 302")
 	if _, ok := ada.syncer.Pending(id); !ok {
@@ -98,18 +98,18 @@ func TestAWriteOnTheStoreReachesTheOtherClone(t *testing.T) {
 		t.Error("a sent write is still queued")
 	}
 
-	if err := berk.syncer.Repo.Fetch(); err != nil {
-		t.Fatalf("berk fetch: %v", err)
+	if err := grace.syncer.Repo.Fetch(); err != nil {
+		t.Fatalf("grace fetch: %v", err)
 	}
-	got, _, err := berk.syncer.Repo.Read(id)
+	got, _, err := grace.syncer.Repo.Read(id)
 	if err != nil {
-		t.Fatalf("berk read: %v", err)
+		t.Fatalf("grace read: %v", err)
 	}
 	if !strings.Contains(string(got), "session cookie dropped on 302") {
 		t.Errorf("the ticket did not arrive:\n%s", got)
 	}
 	// And it arrived without any branch of Ada's being involved.
-	if out := run(t, berk.dir, "git", "branch", "--list", "--all"); strings.Contains(out, "jaira") {
+	if out := run(t, grace.dir, "git", "branch", "--list", "--all"); strings.Contains(out, "jaira") {
 		t.Errorf("the ref showed up as a branch: %q", out)
 	}
 }
@@ -118,26 +118,26 @@ func TestAWriteOnTheStoreReachesTheOtherClone(t *testing.T) {
 // refused, and the report says who was quicker and where the ticket now is.
 // "You lost" on its own would leave the user with nothing to act on.
 func TestARejectedWriteNamesWhoWasQuicker(t *testing.T) {
-	ada, berk, _ := twoSides(t)
+	ada, grace, _ := twoSides(t)
 
 	id := create(t, ada, "shared ticket")
 	if _, err := ada.syncer.Flush(); err != nil {
 		t.Fatalf("ada flush: %v", err)
 	}
 
-	// Berk takes the ticket over from the ref, without any branch.
-	if err := berk.syncer.Repo.Fetch(); err != nil {
-		t.Fatalf("berk fetch: %v", err)
+	// Grace takes the ticket over from the ref, without any branch.
+	if err := grace.syncer.Repo.Fetch(); err != nil {
+		t.Fatalf("grace fetch: %v", err)
 	}
-	content, lease, err := berk.syncer.Repo.Read(id)
+	content, lease, err := grace.syncer.Repo.Read(id)
 	if err != nil {
-		t.Fatalf("berk read: %v", err)
+		t.Fatalf("grace read: %v", err)
 	}
 	moved := strings.ReplaceAll(string(content), "status: backlog", "status: review")
-	moved = withAssignee(moved, "berk")
-	moved = strings.ReplaceAll(moved, "updated-by: ada", "updated-by: berk")
-	if _, err := berk.syncer.Repo.Write(id, []byte(moved), lease); err != nil {
-		t.Fatalf("berk write: %v", err)
+	moved = withAssignee(moved, "grace")
+	moved = strings.ReplaceAll(moved, "updated-by: ada", "updated-by: grace")
+	if _, err := grace.syncer.Repo.Write(id, []byte(moved), lease); err != nil {
+		t.Fatalf("grace write: %v", err)
 	}
 
 	// Ada, who knows nothing of that, writes the ticket again.
@@ -157,13 +157,13 @@ func TestARejectedWriteNamesWhoWasQuicker(t *testing.T) {
 	if w == nil {
 		t.Fatal("a rejection with no winner tells the user nothing")
 	}
-	if w.UpdatedBy != "berk" && w.Assignee != "berk" {
-		t.Errorf("winner is %+v, want berk", w)
+	if w.UpdatedBy != "grace" && w.Assignee != "grace" {
+		t.Errorf("winner is %+v, want grace", w)
 	}
 	if w.Status != "review" {
 		t.Errorf("winner status is %q, want review", w.Status)
 	}
-	if line := w.Describe(); !strings.Contains(line, "berk") || !strings.Contains(line, "review") {
+	if line := w.Describe(); !strings.Contains(line, "grace") || !strings.Contains(line, "review") {
 		t.Errorf("the line shown to the user is %q", line)
 	}
 
@@ -182,17 +182,17 @@ func TestARejectedWriteNamesWhoWasQuicker(t *testing.T) {
 // queue — otherwise the last act of a finished ticket would be the only one
 // needing a network.
 func TestRecordDeleteTakesTheRefDown(t *testing.T) {
-	ada, berk, _ := twoSides(t)
+	ada, grace, _ := twoSides(t)
 
 	id := create(t, ada, "finished work")
 	if _, err := ada.syncer.Flush(); err != nil {
 		t.Fatalf("flush: %v", err)
 	}
-	if err := berk.syncer.Repo.Fetch(); err != nil {
-		t.Fatalf("berk fetch: %v", err)
+	if err := grace.syncer.Repo.Fetch(); err != nil {
+		t.Fatalf("grace fetch: %v", err)
 	}
-	if _, err := berk.syncer.Repo.SHA(id); err != nil {
-		t.Fatalf("berk should see the ref: %v", err)
+	if _, err := grace.syncer.Repo.SHA(id); err != nil {
+		t.Fatalf("grace should see the ref: %v", err)
 	}
 
 	if err := ada.syncer.RecordDelete(id); err != nil {
@@ -205,10 +205,10 @@ func TestRecordDeleteTakesTheRefDown(t *testing.T) {
 	if _, err := ada.syncer.Flush(); err != nil {
 		t.Fatalf("flush delete: %v", err)
 	}
-	if err := berk.syncer.Repo.Fetch(); err != nil {
-		t.Fatalf("berk re-fetch: %v", err)
+	if err := grace.syncer.Repo.Fetch(); err != nil {
+		t.Fatalf("grace re-fetch: %v", err)
 	}
-	if _, err := berk.syncer.Repo.SHA(id); err == nil {
+	if _, err := grace.syncer.Repo.SHA(id); err == nil {
 		t.Error("the ref survived on the other clone")
 	}
 }
@@ -273,8 +273,8 @@ func TestWinnerDescribeFallsBackToSomeoneElse(t *testing.T) {
 	if got := (refsync.Winner{}).Describe(); !strings.Contains(got, "someone else") {
 		t.Errorf("empty winner describes as %q", got)
 	}
-	w := refsync.Winner{Assignee: "berk", Status: "review"}
-	if got := w.Describe(); !strings.Contains(got, "berk") {
+	w := refsync.Winner{Assignee: "grace", Status: "review"}
+	if got := w.Describe(); !strings.Contains(got, "grace") {
 		t.Errorf("assignee-only winner describes as %q", got)
 	}
 }
@@ -303,7 +303,7 @@ var _ = gitref.Prefix
 // local file is newer, and it still must not drag the ticket back out of
 // review.
 func TestReconcileMergesFieldByFieldRatherThanTakingTheNewerSide(t *testing.T) {
-	ada, berk, _ := twoSides(t)
+	ada, grace, _ := twoSides(t)
 	lanes, err := lane.Load(ada.store.Root)
 	if err != nil {
 		t.Fatalf("lanes: %v", err)
@@ -314,21 +314,21 @@ func TestReconcileMergesFieldByFieldRatherThanTakingTheNewerSide(t *testing.T) {
 		t.Fatalf("ada flush: %v", err)
 	}
 
-	// Berk moves it forward to review on the ref, and adds a tag.
-	if err := berk.syncer.Repo.Fetch(); err != nil {
-		t.Fatalf("berk fetch: %v", err)
+	// Grace moves it forward to review on the ref, and adds a tag.
+	if err := grace.syncer.Repo.Fetch(); err != nil {
+		t.Fatalf("grace fetch: %v", err)
 	}
-	content, lease, err := berk.syncer.Repo.Read(id)
+	content, lease, err := grace.syncer.Repo.Read(id)
 	if err != nil {
-		t.Fatalf("berk read: %v", err)
+		t.Fatalf("grace read: %v", err)
 	}
 	// Their write is deliberately older by the clock, and further along the
 	// lane chain. That is the whole point of the case.
 	theirs := strings.ReplaceAll(string(content), "status: backlog", "status: review")
 	theirs = withTag(t, theirs, "concurrency")
 	theirs = olderStamp(theirs)
-	if _, err := berk.syncer.Repo.Write(id, []byte(theirs), lease); err != nil {
-		t.Fatalf("berk write: %v", err)
+	if _, err := grace.syncer.Repo.Write(id, []byte(theirs), lease); err != nil {
+		t.Fatalf("grace write: %v", err)
 	}
 
 	// Ada, later in wall-clock time, only adds a tag of her own locally.
@@ -360,28 +360,28 @@ func TestReconcileMergesFieldByFieldRatherThanTakingTheNewerSide(t *testing.T) {
 // A ticket that arrived on a ref alone is shown as such: it is in no branch
 // this clone has, which is the situation the feature exists for.
 func TestReconcileMarksATicketThatIsInNoBranchHere(t *testing.T) {
-	ada, berk, _ := twoSides(t)
-	lanes, err := lane.Load(berk.store.Root)
+	ada, grace, _ := twoSides(t)
+	lanes, err := lane.Load(grace.store.Root)
 	if err != nil {
 		t.Fatalf("lanes: %v", err)
 	}
 
-	id := create(t, ada, "assigned to berk")
+	id := create(t, ada, "assigned to grace")
 	if _, err := ada.syncer.Flush(); err != nil {
 		t.Fatalf("flush: %v", err)
 	}
-	if err := berk.syncer.Repo.Fetch(); err != nil {
+	if err := grace.syncer.Repo.Fetch(); err != nil {
 		t.Fatalf("fetch: %v", err)
 	}
 
-	got, err := berk.syncer.Reconcile(id, lanes)
+	got, err := grace.syncer.Reconcile(id, lanes)
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
 	if !got.RefOnly {
 		t.Error("a ticket present only on the ref was not marked ref-only")
 	}
-	if !strings.Contains(string(got.Content), "assigned to berk") {
+	if !strings.Contains(string(got.Content), "assigned to grace") {
 		t.Errorf("the ref-only ticket came back empty:\n%s", got.Content)
 	}
 	if got.Unsent {
@@ -447,7 +447,7 @@ func withTag(t *testing.T, doc, tag string) string {
 // The mechanism the whole design rests on: two people try to take the same
 // ticket, exactly one gets it, and the loser is left with no file at all.
 func TestOnlyOneCloneCanPullATicket(t *testing.T) {
-	ada, berk, _ := twoSides(t)
+	ada, grace, _ := twoSides(t)
 
 	// Ada files the ticket and it reaches the remote. Nobody has claimed it.
 	id := create(t, ada, "cookie dropped on 302")
@@ -455,27 +455,27 @@ func TestOnlyOneCloneCanPullATicket(t *testing.T) {
 		t.Fatalf("ada flush: %v", err)
 	}
 
-	// A third clone would be the honest fixture, but two suffice: berk pulls
+	// A third clone would be the honest fixture, but two suffice: grace pulls
 	// it, and ada — who still holds the pre-pull ref — pulls too.
 	if err := ada.syncer.Repo.Fetch(); err != nil {
 		t.Fatalf("ada fetch: %v", err)
 	}
-	got, err := berk.syncer.Pull(id, false)
+	got, err := grace.syncer.Pull(id, false)
 	if err != nil {
-		t.Fatalf("berk pull: %v", err)
+		t.Fatalf("grace pull: %v", err)
 	}
 	if got.AlreadyHere || got.Winner != nil {
-		t.Fatalf("berk's pull did not take the ticket: %+v", got)
+		t.Fatalf("grace's pull did not take the ticket: %+v", got)
 	}
 	if _, err := os.Stat(got.Path); err != nil {
-		t.Fatalf("berk has no file: %v", err)
+		t.Fatalf("grace has no file: %v", err)
 	}
-	tk, err := berk.store.Load(id)
+	tk, err := grace.store.Load(id)
 	if err != nil {
-		t.Fatalf("berk cannot load it: %v", err)
+		t.Fatalf("grace cannot load it: %v", err)
 	}
-	if tk.Assignee != "berk" {
-		t.Errorf("the pull did not make it berk's: assignee %q", tk.Assignee)
+	if tk.Assignee != "grace" {
+		t.Errorf("the pull did not make it grace's: assignee %q", tk.Assignee)
 	}
 
 	// Ada already has the file because she created it; the case worth testing
@@ -492,7 +492,7 @@ func TestOnlyOneCloneCanPullATicket(t *testing.T) {
 	if !errors.Is(err, refsync.ErrTaken) {
 		t.Fatalf("ada's pull should have been refused as taken, got %v", err)
 	}
-	if lost.Winner == nil || (lost.Winner.Assignee != "berk" && lost.Winner.UpdatedBy != "berk") {
+	if lost.Winner == nil || (lost.Winner.Assignee != "grace" && lost.Winner.UpdatedBy != "grace") {
 		t.Errorf("the loser was not told who has it: %+v", lost.Winner)
 	}
 	// And the loser holds nothing: this is the duplicate the design exists to
@@ -505,16 +505,16 @@ func TestOnlyOneCloneCanPullATicket(t *testing.T) {
 // A repeated pull is a successful no-op, like moving a ticket to the lane it is
 // already in: commands here are safe to retry.
 func TestPullingATicketYouAlreadyHaveIsANoOp(t *testing.T) {
-	ada, berk, _ := twoSides(t)
+	ada, grace, _ := twoSides(t)
 	id := create(t, ada, "already here")
 	if _, err := ada.syncer.Flush(); err != nil {
 		t.Fatalf("flush: %v", err)
 	}
-	first, err := berk.syncer.Pull(id, false)
+	first, err := grace.syncer.Pull(id, false)
 	if err != nil {
 		t.Fatalf("first pull: %v", err)
 	}
-	second, err := berk.syncer.Pull(id, false)
+	second, err := grace.syncer.Pull(id, false)
 	if err != nil {
 		t.Fatalf("second pull: %v", err)
 	}
@@ -567,26 +567,26 @@ func fileOnRef(t *testing.T, s side, title string) string {
 // The other half of pull: while a ticket names somebody, nobody else can take
 // it, and only handing it back opens it up again.
 func TestReleaseHandsTheTicketBack(t *testing.T) {
-	ada, berk, _ := twoSides(t)
+	ada, grace, _ := twoSides(t)
 	id := fileOnRef(t, ada, "hand it back")
-	if _, err := berk.syncer.Pull(id, false); err != nil {
-		t.Fatalf("berk pull: %v", err)
+	if _, err := grace.syncer.Pull(id, false); err != nil {
+		t.Fatalf("grace pull: %v", err)
 	}
 
-	// Ada cannot release berk's ticket for him.
+	// Ada cannot release grace's ticket for him.
 	if _, err := ada.syncer.Release(id, false); !errors.Is(err, refsync.ErrTaken) {
 		t.Fatalf("ada released somebody else's ticket: %v", err)
 	}
 
-	got, err := berk.syncer.Release(id, false)
+	got, err := grace.syncer.Release(id, false)
 	if err != nil {
-		t.Fatalf("berk release: %v", err)
+		t.Fatalf("grace release: %v", err)
 	}
 	if got.Removed == "" {
 		t.Error("the file was left behind, which is the duplicate this rules out")
 	}
-	if _, err := berk.store.Load(id); err == nil {
-		t.Error("berk still has the ticket file after releasing it")
+	if _, err := grace.store.Load(id); err == nil {
+		t.Error("grace still has the ticket file after releasing it")
 	}
 
 	// And now it is anybody's again.
@@ -612,10 +612,10 @@ func TestReleaseHandsTheTicketBack(t *testing.T) {
 // Assigning a ticket to somebody reserves it for them: they must still pull it
 // themselves, and until they do — or hand it back — nobody else can.
 func TestAnAssignedTicketIsReservedForItsAssignee(t *testing.T) {
-	ada, berk, _ := twoSides(t)
-	id := create(t, ada, "for berk")
+	ada, grace, _ := twoSides(t)
+	id := create(t, ada, "for grace")
 	if _, err := ada.store.Mutate(id, func(tk *ticket.Ticket) error {
-		return tk.Doc().SetScalar(ticket.FieldAssignee, "berk")
+		return tk.Doc().SetScalar(ticket.FieldAssignee, "grace")
 	}); err != nil {
 		t.Fatalf("assign: %v", err)
 	}
@@ -636,16 +636,16 @@ func TestAnAssignedTicketIsReservedForItsAssignee(t *testing.T) {
 	if _, err := ada.syncer.Pull(id, false); !errors.Is(err, refsync.ErrTaken) {
 		t.Fatalf("the assigner pulled a ticket they had given away: %v", err)
 	}
-	// Berk can, and only then does it exist on his disk.
-	if _, err := berk.store.Load(id); err == nil {
-		t.Fatal("the ticket materialised at berk without him pulling it")
+	// Grace can, and only then does it exist on his disk.
+	if _, err := grace.store.Load(id); err == nil {
+		t.Fatal("the ticket materialised at grace without him pulling it")
 	}
-	got, err := berk.syncer.Pull(id, false)
+	got, err := grace.syncer.Pull(id, false)
 	if err != nil {
-		t.Fatalf("berk could not pull the ticket assigned to him: %v", err)
+		t.Fatalf("grace could not pull the ticket assigned to him: %v", err)
 	}
 	if got.Winner != nil {
-		t.Errorf("berk was refused his own ticket: %+v", got.Winner)
+		t.Errorf("grace was refused his own ticket: %+v", got.Winner)
 	}
 }
 
@@ -653,17 +653,17 @@ func TestAnAssignedTicketIsReservedForItsAssignee(t *testing.T) {
 // the ticket is theirs until they fetch, so the note on the ticket is the only
 // place they can read why it stopped being.
 func TestStealingRecordsWhoItWasTakenFrom(t *testing.T) {
-	ada, berk, _ := twoSides(t)
+	ada, grace, _ := twoSides(t)
 	id := fileOnRef(t, ada, "contested")
 
-	if _, err := berk.syncer.Pull(id, false); err != nil {
-		t.Fatalf("berk pull: %v", err)
+	if _, err := grace.syncer.Pull(id, false); err != nil {
+		t.Fatalf("grace pull: %v", err)
 	}
 	got, err := ada.syncer.Pull(id, true)
 	if err != nil {
 		t.Fatalf("ada steal: %v", err)
 	}
-	if got.TakenFrom != "berk" {
+	if got.TakenFrom != "grace" {
 		t.Errorf("the steal did not record who it was taken from: %q", got.TakenFrom)
 	}
 	tk, err := ada.store.Load(id)
@@ -673,21 +673,21 @@ func TestStealingRecordsWhoItWasTakenFrom(t *testing.T) {
 	if tk.Assignee != "ada" {
 		t.Errorf("assignee is %q after the steal", tk.Assignee)
 	}
-	if !strings.Contains(tk.Body, "took this ticket over from berk") {
+	if !strings.Contains(tk.Body, "took this ticket over from grace") {
 		t.Errorf("no note on the ticket about the take-over:\n%s", tk.Body)
 	}
-	// And the note is on the ref too, which is the copy berk will fetch.
-	onRef, _, err := berk.syncer.Repo.Read(id)
-	if err == nil && !strings.Contains(string(onRef), "took this ticket over from berk") {
-		if err := berk.syncer.Repo.Fetch(); err != nil {
-			t.Fatalf("berk fetch: %v", err)
+	// And the note is on the ref too, which is the copy grace will fetch.
+	onRef, _, err := grace.syncer.Repo.Read(id)
+	if err == nil && !strings.Contains(string(onRef), "took this ticket over from grace") {
+		if err := grace.syncer.Repo.Fetch(); err != nil {
+			t.Fatalf("grace fetch: %v", err)
 		}
-		onRef, _, err = berk.syncer.Repo.Read(id)
+		onRef, _, err = grace.syncer.Repo.Read(id)
 		if err != nil {
-			t.Fatalf("berk read: %v", err)
+			t.Fatalf("grace read: %v", err)
 		}
-		if !strings.Contains(string(onRef), "took this ticket over from berk") {
-			t.Errorf("the ref berk fetches carries no trace of the take-over:\n%s", onRef)
+		if !strings.Contains(string(onRef), "took this ticket over from grace") {
+			t.Errorf("the ref grace fetches carries no trace of the take-over:\n%s", onRef)
 		}
 	}
 }
@@ -696,16 +696,16 @@ func TestStealingRecordsWhoItWasTakenFrom(t *testing.T) {
 // vanished ref is the signal, and it has to survive the very fetch that
 // notices it — otherwise the report is silent exactly when it matters.
 func TestATicketTakenOffTheBoardElsewhereIsReportedHere(t *testing.T) {
-	ada, berk, _ := twoSides(t)
+	ada, grace, _ := twoSides(t)
 	id := fileOnRef(t, ada, "finished elsewhere")
 
-	if _, err := berk.syncer.Pull(id, false); err != nil {
-		t.Fatalf("berk pull: %v", err)
+	if _, err := grace.syncer.Pull(id, false); err != nil {
+		t.Fatalf("grace pull: %v", err)
 	}
-	if _, err := berk.syncer.Incoming(); err != nil {
-		t.Fatalf("berk fetch: %v", err)
+	if _, err := grace.syncer.Incoming(); err != nil {
+		t.Fatalf("grace fetch: %v", err)
 	}
-	if d := berk.syncer.Departed(); len(d) != 0 {
+	if d := grace.syncer.Departed(); len(d) != 0 {
 		t.Fatalf("nothing has left the board yet: %+v", d)
 	}
 
@@ -735,11 +735,11 @@ func TestATicketTakenOffTheBoardElsewhereIsReportedHere(t *testing.T) {
 		t.Fatalf("removing the ref: %v", err)
 	}
 
-	// Berk's fetch must both notice and keep noticing.
-	if _, err := berk.syncer.Incoming(); err != nil {
-		t.Fatalf("berk re-fetch: %v", err)
+	// Grace's fetch must both notice and keep noticing.
+	if _, err := grace.syncer.Incoming(); err != nil {
+		t.Fatalf("grace re-fetch: %v", err)
 	}
-	departed := berk.syncer.Departed()
+	departed := grace.syncer.Departed()
 	if len(departed) != 1 || departed[0].ID != id {
 		t.Fatalf("the ticket that left the board was not reported: %+v", departed)
 	}
@@ -748,15 +748,15 @@ func TestATicketTakenOffTheBoardElsewhereIsReportedHere(t *testing.T) {
 	}
 	// A second fetch must not lose it: it is unfinished business until the
 	// person deals with it.
-	if _, err := berk.syncer.Incoming(); err != nil {
-		t.Fatalf("berk third fetch: %v", err)
+	if _, err := grace.syncer.Incoming(); err != nil {
+		t.Fatalf("grace third fetch: %v", err)
 	}
-	if d := berk.syncer.Departed(); len(d) != 1 {
+	if d := grace.syncer.Departed(); len(d) != 1 {
 		t.Errorf("the report went silent on the next fetch: %+v", d)
 	}
 	// And once it is dealt with, it stops being reported.
-	berk.syncer.ForgetDeparted(id)
-	if d := berk.syncer.Departed(); len(d) != 0 {
+	grace.syncer.ForgetDeparted(id)
+	if d := grace.syncer.Departed(); len(d) != 0 {
 		t.Errorf("still reported after being dealt with: %+v", d)
 	}
 }

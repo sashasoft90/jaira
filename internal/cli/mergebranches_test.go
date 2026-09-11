@@ -61,17 +61,17 @@ func TestTwoBranchesOnOneTicketMergeFieldAware(t *testing.T) {
 	run(t, repo, bin, "tag", ticketID, "concurrency")
 	run(t, repo, "git", "commit", "--quiet", "-am", "ada tags it")
 
-	// Berk, on his own branch off the same commit, moves it forward and tags
+	// Grace, on his own branch off the same commit, moves it forward and tags
 	// it with something else.
 	run(t, repo, "git", "checkout", "--quiet", "master")
-	run(t, repo, "git", "checkout", "--quiet", "-b", "berk")
+	run(t, repo, "git", "checkout", "--quiet", "-b", "grace")
 	run(t, repo, bin, "move", ticketID, "--to", "todo")
 	run(t, repo, bin, "tag", ticketID, "cli")
-	run(t, repo, "git", "commit", "--quiet", "-am", "berk moves it to todo")
+	run(t, repo, "git", "commit", "--quiet", "-am", "grace moves it to todo")
 
 	// The merge git would call a conflict on one line.
 	run(t, repo, "git", "checkout", "--quiet", "ada")
-	merge := exec.Command("git", "merge", "--no-edit", "berk")
+	merge := exec.Command("git", "merge", "--no-edit", "grace")
 	merge.Dir = repo
 	if out, err := merge.CombinedOutput(); err != nil {
 		t.Fatalf("the merge failed instead of resolving field by field: %v\n%s", err, out)
@@ -220,26 +220,26 @@ func TestTwoBranchesThatBothCreateTheTicketStillMergeFieldAware(t *testing.T) {
 	path := ticketPath(t, filepath.Join(repo, ".jaira", "tickets"), id)
 	name := filepath.Base(path)
 
-	// Berk lands the same ticket on his own branch, one lane further on. The
+	// Grace lands the same ticket on his own branch, one lane further on. The
 	// file exists on both branches with no common ancestor: add/add.
 	run(t, repo, "git", "checkout", "--quiet", "master")
-	run(t, repo, "git", "checkout", "--quiet", "-b", "berk")
+	run(t, repo, "git", "checkout", "--quiet", "-b", "grace")
 	run(t, repo, "git", "checkout", "--quiet", "ada", "--", ".jaira/tickets/"+name)
 	landed, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	theirs := strings.ReplaceAll(string(landed), "status: backlog", "status: todo")
-	theirs = strings.ReplaceAll(theirs, "updated-by: ada", "updated-by: berk")
+	theirs = strings.ReplaceAll(theirs, "updated-by: ada", "updated-by: grace")
 	theirs = strings.ReplaceAll(theirs, "  - concurrency", "  - cli")
 	if err := os.WriteFile(path, []byte(theirs), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	run(t, repo, "git", "add", ".jaira")
-	run(t, repo, "git", "commit", "--quiet", "-m", "berk lands the same ticket")
+	run(t, repo, "git", "commit", "--quiet", "-m", "grace lands the same ticket")
 
 	run(t, repo, "git", "checkout", "--quiet", "ada")
-	merge := exec.Command("git", "merge", "--no-edit", "berk")
+	merge := exec.Command("git", "merge", "--no-edit", "grace")
 	merge.Dir = repo
 	mergeOut, mergeErr := merge.CombinedOutput()
 

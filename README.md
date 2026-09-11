@@ -361,18 +361,18 @@ sequenceDiagram
     autonumber
     actor A as Ada
     participant R as origin<br/>refs/jaira/tickets/*
-    actor B as Berk
+    actor B as Grace
 
-    A->>R: jaira create "fix the 302" --assignee berk
+    A->>R: jaira create "fix the 302" --assignee grace
     Note over A: no file on Ada's disk:<br/>the ticket is on its ref
     B->>R: jaira fetch
     R-->>B: "fix the 302  @you new ref-only"
     Note over B: a desktop notification, once
-    B->>R: jaira pull  (assignee = berk, compare-and-swap)
+    B->>R: jaira pull  (assignee = grace, compare-and-swap)
     R-->>B: accepted
     Note over B: now, and only now, the file<br/>exists under .jaira/tickets — here
     A->>R: jaira pull  (same ticket)
-    R-->>A: refused: "berk has it"
+    R-->>A: refused: "grace has it"
     Note over A: nothing written on Ada's disk
     B->>B: work, commit the ticket with the code
     B->>R: jaira move --to review

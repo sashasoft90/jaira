@@ -200,7 +200,7 @@ func (w Winner) Describe() string {
 
 // Holds renders the same state as a statement of ownership rather than of a
 // race. The two refusals are different facts and must not borrow each other's
-// wording: "berk wrote it first" is about who won a push, "berk has it" is
+// wording: "grace wrote it first" is about who won a push, "grace has it" is
 // about who the ticket belongs to.
 func (w Winner) Holds() string {
 	who := w.Assignee
@@ -230,7 +230,7 @@ type Report struct {
 // clone has seen, so without fetching, the very first push would be refused
 // for a race that has in fact already been resolved on the remote. Fetching
 // also makes the winner readable, which is the difference between "you lost"
-// and "Berk moved it to review".
+// and "Grace moved it to review".
 func (y *Syncer) Flush() ([]Report, error) {
 	if y == nil || y.Usable() != nil {
 		return nil, nil

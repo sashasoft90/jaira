@@ -10,41 +10,41 @@ refs() { git -C "$1" ls-remote origin 'refs/jaira/tickets/*' 2>/dev/null | wc -l
 files() { ls "$1"/.jaira/tickets 2>/dev/null | wc -l; }
 id_of() { grep -o '"id": "[^"]*"' | head -1 | cut -d'"' -f4; }
 
-say "0. three clones of one bare repo: ada, berk, carol"
+say "0. three clones of one bare repo: ada, grace, carol"
 git init -q --bare $R/board.git
-for n in ada berk carol; do
+for n in ada grace carol; do
   git clone -q $R/board.git $R/$n 2>/dev/null
   git -C $R/$n config user.name $n; git -C $R/$n config user.email $n@x.test
   $J -C $R/$n init >/dev/null
 done
 echo "   sandbox: $R"
 
-say "1. ada files a ticket for berk — and gets no file"
+say "1. ada files a ticket for grace — and gets no file"
 A=$($J -C $R/ada create "session cookie dropped on 302" --goal "the cookie survives the OAuth round-trip" \
-      --context "reported in chat while debugging Safari logouts" --dod "survives the redirect" --assignee berk --json | id_of)
+      --context "reported in chat while debugging Safari logouts" --dod "survives the redirect" --assignee grace --json | id_of)
 echo "   files at ada: $(files $R/ada)   refs on the remote: $(refs $R/ada)     (expect 0 and 1)"
 
-say "2. berk did nothing but read"
-$J -C $R/berk fetch --quiet
+say "2. grace did nothing but read"
+$J -C $R/grace fetch --quiet
 echo "   ^ '@you new ref-only' = assigned to you, and in nobody's branch here"
 
 say "3. listing and showing work without a file, writing does not"
-$J -C $R/berk list | sed -n '2,3p'
-$J -C $R/berk note $A "trying to write"; echo "   ^ exit=$? (expect 3)"
+$J -C $R/grace list | sed -n '2,3p'
+$J -C $R/grace note $A "trying to write"; echo "   ^ exit=$? (expect 3)"
 
 say "4. carol tries to take a ticket that is not hers"
 $J -C $R/carol fetch --quiet >/dev/null; $J -C $R/carol pull $A; echo "   exit=$? files at carol: $(files $R/carol)   (expect 3 and 0)"
 
-say "5. berk takes his own — the file appears at HIS clone only"
-$J -C $R/berk pull $A | head -1
-echo "   berk: $(files $R/berk)   ada: $(files $R/ada)   carol: $(files $R/carol)     (expect 1 0 0)"
+say "5. grace takes his own — the file appears at HIS clone only"
+$J -C $R/grace pull $A | head -1
+echo "   grace: $(files $R/grace)   ada: $(files $R/ada)   carol: $(files $R/carol)     (expect 1 0 0)"
 
-say "6. now berk can write"
-$J -C $R/berk note $A "started"; echo "   exit=$?   (expect 0)"
+say "6. now grace can write"
+$J -C $R/grace note $A "started"; echo "   exit=$?   (expect 0)"
 
-say "7. berk hands the ticket back"
-$J -C $R/berk release $A | head -2
-echo "   files at berk: $(files $R/berk)   (expect 0)"
+say "7. grace hands the ticket back"
+$J -C $R/grace release $A | head -2
+echo "   files at grace: $(files $R/grace)   (expect 0)"
 
 say "8. so carol can take it"
 $J -C $R/carol fetch --quiet >/dev/null; $J -C $R/carol pull $A | head -1

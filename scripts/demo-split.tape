@@ -1,4 +1,4 @@
-# Split screen: ADA on the left, BERK on the right, in one recording.
+# Split screen: ADA on the left, GRACE on the right, in one recording.
 #
 #   go install github.com/charmbracelet/vhs@latest
 #   sudo apt install ttyd ffmpeg tmux
@@ -24,8 +24,8 @@ Sleep 8s
 Show
 Sleep 1s
 
-# ── ADA files a ticket for BERK ──────────────────────────────────────
-Type "jaira create 'session cookie dropped on 302' --goal 'the cookie survives the OAuth round-trip' --context 'reported in chat: Safari logs people out mid-flow' --dod 'session survives the redirect' --assignee berk"
+# ── ADA files a ticket for GRACE ──────────────────────────────────────
+Type "jaira create 'session cookie dropped on 302' --goal 'the cookie survives the OAuth round-trip' --context 'reported in chat: Safari logs people out mid-flow' --dod 'session survives the redirect' --assignee grace"
 Sleep 500ms
 Enter
 Sleep 3s
@@ -34,7 +34,7 @@ Type "ls .jaira/tickets/ | wc -l"
 Enter
 Sleep 2s
 
-# ── over to BERK ─────────────────────────────────────────────────────
+# ── over to GRACE ─────────────────────────────────────────────────────
 Ctrl+B
 Type "o"
 Sleep 1s

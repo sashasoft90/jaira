@@ -6,7 +6,7 @@ set -eu
 J=${J:-/tmp/jaira}
 R=$(mktemp -d)
 git init -q --bare "$R/board.git"
-for n in ada berk; do
+for n in ada grace; do
   git clone -q "$R/board.git" "$R/$n" 2>/dev/null
   git -C "$R/$n" config user.name "$n"
   git -C "$R/$n" config user.email "$n@example.test"

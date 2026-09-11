@@ -35,7 +35,7 @@ func TestATicketOnTheBoardAndInTheLogbookIsReported(t *testing.T) {
 	}
 
 	// The same ticket, also filed away by somebody else's branch.
-	folder := filepath.Join(s.LogbookDir(), "berk-20260910")
+	folder := filepath.Join(s.LogbookDir(), "grace-20260910")
 	if err := os.MkdirAll(folder, 0o755); err != nil {
 		t.Fatal(err)
 	}
