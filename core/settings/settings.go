@@ -57,18 +57,23 @@ type Settings struct {
 	// for the first time and has no refs yet. Empty means jaira/board.
 	SnapshotBranch string `json:"snapshot-branch,omitempty"`
 
-	// SnapshotEveryHours is how old the backup may get. Empty means three
-	// days: every participant's clone holds the refs, so the board survives any
-	// one machine, and this is for the slow cases only.
-	SnapshotEveryHours int `json:"snapshot-every-hours,omitempty"`
+	// SnapshotEvery is how old the backup may get, as a duration ("72h").
+	// Empty means three days: every participant's clone holds the refs, so the
+	// board survives any one machine, and this is for the slow cases only.
+	SnapshotEvery string `json:"snapshot-every,omitempty"`
 
-	// FetchEveryMinutes is how often the ticket refs are brought up to date in
-	// the background. Empty means ten minutes.
-	FetchEveryMinutes int `json:"fetch-every-minutes,omitempty"`
+	// FetchEvery is how often the ticket refs are brought up to date in the
+	// background, as a duration ("10m"). Empty means ten minutes.
+	//
+	// One setting for the CLI and the board alike. They used to disagree — the
+	// board had its own hard-wired minute — and somebody who changed this would
+	// have found the board carrying on at its own pace.
+	FetchEvery string `json:"fetch-every,omitempty"`
 
-	// LandingGraceDays is how long a finished ticket may go without arriving in
-	// a landing branch before jaira mentions it. Empty means three.
-	LandingGraceDays int `json:"landing-grace-days,omitempty"`
+	// LandingGrace is how long a finished ticket may go without arriving in a
+	// landing branch before jaira mentions it, as a duration ("72h"). Empty
+	// means three days.
+	LandingGrace string `json:"landing-grace,omitempty"`
 }
 
 // Path is the settings file, honouring JAIRA_HOME so tests and a sandboxed run
@@ -141,33 +146,47 @@ func (s Settings) SnapshotBranchName() string {
 	return snapshot.DefaultBranch
 }
 
-// SnapshotEvery returns how old a snapshot may get.
-func (s Settings) SnapshotEvery() time.Duration {
-	if s.SnapshotEveryHours > 0 {
-		return time.Duration(s.SnapshotEveryHours) * time.Hour
+// every parses one of the interval settings, falling back to the default.
+//
+// A value nobody can parse is not worth refusing to start over: it is one
+// person's preference file, the cost of ignoring it is that a background job
+// keeps its usual pace, and the cost of failing on it is a board that will not
+// open. Zero and negative are treated the same way, since "every 0s" is not an
+// interval anybody means.
+func every(value string, fallback time.Duration) time.Duration {
+	v := strings.TrimSpace(value)
+	if v == "" {
+		return fallback
 	}
-	return snapshot.DefaultEvery
+	d, err := time.ParseDuration(v)
+	if err != nil || d <= 0 {
+		return fallback
+	}
+	return d
 }
 
-// FetchEvery returns how often the refs are refreshed in the background.
-func (s Settings) FetchEvery() time.Duration {
-	if s.FetchEveryMinutes > 0 {
-		return time.Duration(s.FetchEveryMinutes) * time.Minute
-	}
-	return refsync.DefaultFetchEvery
+// SnapshotInterval returns how old a snapshot may get.
+func (s Settings) SnapshotInterval() time.Duration {
+	return every(s.SnapshotEvery, snapshot.DefaultEvery)
 }
 
-// LandingGrace returns how long a finished ticket may take to arrive before it
-// is worth mentioning.
+// FetchInterval returns how often the refs are refreshed in the background,
+// for the CLI and the board alike.
+func (s Settings) FetchInterval() time.Duration {
+	return every(s.FetchEvery, refsync.DefaultFetchEvery)
+}
+
+// DefaultLandingGrace is how long a finished ticket may take to arrive before
+// it is worth mentioning.
 //
 // Three days, chosen against how long a review actually takes here rather than
 // as a round number: a week is long enough that a forgotten branch stops being
 // news by the time anybody hears about it.
-func (s Settings) LandingGrace() time.Duration {
-	if s.LandingGraceDays > 0 {
-		return time.Duration(s.LandingGraceDays) * 24 * time.Hour
-	}
-	return 3 * 24 * time.Hour
+const DefaultLandingGrace = 3 * 24 * time.Hour
+
+// LandingGraceInterval returns that, or whatever the settings say instead.
+func (s Settings) LandingGraceInterval() time.Duration {
+	return every(s.LandingGrace, DefaultLandingGrace)
 }
 
 // Landing returns the branches to check for a landed ticket, as revisions on

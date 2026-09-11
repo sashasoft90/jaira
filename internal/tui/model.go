@@ -183,6 +183,14 @@ type Model struct {
 	// refreshed from disk on every reload, never from the network.
 	unsent map[string]bool
 
+	// flashMsg is a line about something that arrived on its own, shown on the
+	// board itself rather than as a screen to dismiss, and forgotten after
+	// flashFor. It is deliberately not the message screen: that one belongs to
+	// what the person just did, this one to what happened while they were
+	// doing it.
+	flashMsg string
+	flashAt  time.Time
+
 	// watch carries filesystem events. A watcher is more responsive than the
 	// timer, but the timer stays as a backstop because change notifications are
 	// unreliable on some filesystems, notably Windows drives mounted into WSL2.
@@ -679,6 +687,22 @@ func waitForChange(ch chan struct{}) tea.Cmd {
 		<-ch
 		return changeMsg{}
 	}
+}
+
+// flashFor is how long a line about an arrival stays on the board. Long enough
+// to notice while looking elsewhere on the screen, short enough that it is gone
+// before it becomes part of the furniture.
+const flashFor = 30 * time.Second
+
+// flash puts a line on the board without taking the screen.
+func (m *Model) flash(msg string) { m.flashMsg, m.flashAt = msg, time.Now() }
+
+// flashLine returns what to show, or "" once it has been up long enough.
+func (m *Model) flashLine() string {
+	if m.flashMsg == "" || time.Since(m.flashAt) > flashFor {
+		return ""
+	}
+	return m.flashMsg
 }
 
 type tickMsg time.Time

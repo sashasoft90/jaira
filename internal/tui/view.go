@@ -840,6 +840,10 @@ func (m *Model) statusBar() string {
 	if len(m.warnings) > 0 {
 		prefix += styWarn.Render(fmt.Sprintf("⚠ %d ", len(m.warnings)))
 	}
+	// Something arrived while you were looking at something else.
+	if line := m.flashLine(); line != "" {
+		prefix += styAsks.Render("● " + line + " ")
+	}
 
 	// Wrapped, never dropped: a key the bar has no room for is a key the reader
 	// does not know exists. renderBoard measures this bar and gives the columns

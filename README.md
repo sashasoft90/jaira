@@ -443,8 +443,17 @@ deletion the ticket is in the snapshot *and* in the branch it landed in, so
 there is nothing left to lose.
 
 ```json
-{ "landing-branches": ["main", "develop", "release/*"] }
+{
+  "landing-branches": ["main", "develop", "release/*"],
+  "fetch-every": "10m",
+  "snapshot-every": "72h",
+  "landing-grace": "72h"
+}
 ```
+
+The three intervals are durations, so the same field says `3s` for a screen
+recording and `72h` for a backup. An unreadable one falls back to the default
+rather than refusing to open the board.
 
 A list rather than one "main branch", because there is no answer to what the
 important branch is called. With nothing configured, the remote's own HEAD is

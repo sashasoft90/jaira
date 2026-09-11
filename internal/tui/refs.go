@@ -13,10 +13,14 @@ import (
 	"github.com/BeMuCa/jaira/core/ticket"
 )
 
-// refFetchEvery is how often the board looks at the remote. Two seconds is
-// right for the local rescan; a network round trip on that cadence is not, and
-// nobody is handed a ticket twice a minute.
-const refFetchEvery = 60 * time.Second
+// refFetchEvery answers how often the board looks at the remote, from the same
+// setting the CLI's background fetch uses.
+//
+// It used to be a constant here, and that was a quiet trap: somebody who set
+// 'fetch-every' in their settings would have found the board carrying on at
+// its own pace, with nothing saying why. Two seconds is right for the local
+// rescan; a network round trip on that cadence is not.
+func refFetchEvery() time.Duration { return settings.Load().FetchInterval() }
 
 // refFetchedMsg carries the result of a background fetch back into the update
 // loop.
@@ -73,7 +77,7 @@ func fetchRefs(y *refsync.Syncer) tea.Cmd {
 
 // refTick re-arms the background fetch.
 func refTick() tea.Cmd {
-	return tea.Tick(refFetchEvery, func(time.Time) tea.Msg { return refTickMsg{} })
+	return tea.Tick(refFetchEvery(), func(time.Time) tea.Msg { return refTickMsg{} })
 }
 
 type refTickMsg struct{}
@@ -105,9 +109,13 @@ func (m *Model) announceArrivals(arrivals []refsync.Arrival) {
 		}
 		notify.Send("jaira: a ticket is yours", fmt.Sprintf("%s — %s", ticket.Handle(a.ID), title))
 	}
+	// Shown as a line on the board, never as a screen of its own. An arrival is
+	// news the person did not ask for, arriving while they are in the middle of
+	// something: taking the screen for it would interrupt them and could
+	// swallow the keystroke they were already typing.
 	if len(mine) == 1 {
-		m.notify(fmt.Sprintf("%s is yours: %s", ticket.Handle(mine[0].ID), mine[0].Title), false)
+		m.flash(fmt.Sprintf("%s is yours: %s", ticket.Handle(mine[0].ID), mine[0].Title))
 		return
 	}
-	m.notify(fmt.Sprintf("%d tickets were assigned to you", len(mine)), false)
+	m.flash(fmt.Sprintf("%d tickets were assigned to you", len(mine)))
 }

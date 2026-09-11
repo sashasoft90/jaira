@@ -111,16 +111,62 @@ func TestConfiguredLandingBranchesWinAndAreRemotePrefixed(t *testing.T) {
 	}
 }
 
-func TestSnapshotDefaults(t *testing.T) {
+func TestIntervalDefaults(t *testing.T) {
 	t.Setenv("JAIRA_HOME", t.TempDir())
 	s := settings.Load()
 	if s.SnapshotBranchName() != "jaira/board" {
 		t.Errorf("snapshot branch defaults to %q", s.SnapshotBranchName())
 	}
-	if s.SnapshotEvery() != 72*time.Hour {
-		t.Errorf("snapshot interval defaults to %v", s.SnapshotEvery())
+	if s.SnapshotInterval() != 72*time.Hour {
+		t.Errorf("snapshot interval defaults to %v", s.SnapshotInterval())
 	}
-	if s.LandingGrace() != 3*24*time.Hour {
-		t.Errorf("landing grace defaults to %v", s.LandingGrace())
+	if s.FetchInterval() != 10*time.Minute {
+		t.Errorf("fetch interval defaults to %v", s.FetchInterval())
+	}
+	if s.LandingGraceInterval() != 3*24*time.Hour {
+		t.Errorf("landing grace defaults to %v", s.LandingGraceInterval())
+	}
+}
+
+// The intervals are durations, so the same field says "three seconds" for a
+// screen recording and "three days" for a backup without a second field per
+// unit.
+func TestIntervalsAreDurations(t *testing.T) {
+	t.Setenv("JAIRA_HOME", t.TempDir())
+	if err := settings.Save(settings.Settings{
+		FetchEvery: "3s", SnapshotEvery: "90m", LandingGrace: "48h",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	s := settings.Load()
+	if s.FetchInterval() != 3*time.Second {
+		t.Errorf("fetch interval is %v", s.FetchInterval())
+	}
+	if s.SnapshotInterval() != 90*time.Minute {
+		t.Errorf("snapshot interval is %v", s.SnapshotInterval())
+	}
+	if s.LandingGraceInterval() != 48*time.Hour {
+		t.Errorf("landing grace is %v", s.LandingGraceInterval())
+	}
+}
+
+// A value nobody can parse is one person's typo, not a reason to refuse to
+// open a board: the background job keeps its usual pace and says nothing.
+func TestAnUnreadableIntervalFallsBackToTheDefault(t *testing.T) {
+	t.Setenv("JAIRA_HOME", t.TempDir())
+	if err := settings.Save(settings.Settings{
+		FetchEvery: "ten minutes", SnapshotEvery: "0s", LandingGrace: "-5h",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	s := settings.Load()
+	if s.FetchInterval() != 10*time.Minute {
+		t.Errorf("nonsense fetch interval became %v", s.FetchInterval())
+	}
+	if s.SnapshotInterval() != 72*time.Hour {
+		t.Errorf("a zero snapshot interval became %v", s.SnapshotInterval())
+	}
+	if s.LandingGraceInterval() != 3*24*time.Hour {
+		t.Errorf("a negative grace became %v", s.LandingGraceInterval())
 	}
 }
