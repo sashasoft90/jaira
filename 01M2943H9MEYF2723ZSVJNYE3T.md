@@ -20,7 +20,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T20:56:18Z
-updated-at: 2026-09-11T21:00:29Z
+updated-at: 2026-09-11T21:00:33Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-1358160
 claimed-at: 2026-09-11T20:56:31Z
@@ -42,4 +42,8 @@ claimed-at: 2026-09-11T20:56:31Z
 <Steps, in order — filled in by the pre-process step, or by you.>
 
 ## Progress
+- **2026-09-11 21:00 · Alexander Sacharov** — Only internal/cli leaked - measured by running each package on its own and counting ~/.jaira/state before and after, because HOME cannot be redirected in this session. 34 directories per run of that package; every other package already isolates JAIRA_HOME or never opens a store.
 
+Fixed with one TestMain for the package rather than a t.Setenv in each of the 26 test files: 10 of them already set it and 16 did not, so the leak is the default, and a test that forgets is silently wrong somewhere nobody looks. A per-test t.Setenv still overrides it.
+
+The sweep deleted every directory under ~/.jaira/state holding no regular file at all - no session, no lock, no stamp, nothing to lose. 3150 went, 23 real checkouts stayed, 38 MB down to 636 KB. scratchpad/sweep.sh is the script; it is not in the repo, since the leak it cleans up is now fixed.
