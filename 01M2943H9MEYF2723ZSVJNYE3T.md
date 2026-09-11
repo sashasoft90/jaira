@@ -20,13 +20,14 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T20:56:18Z
-updated-at: 2026-09-11T21:00:43Z
+updated-at: 2026-09-11T21:00:53Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-1358160
 claimed-at: 2026-09-11T20:56:31Z
 outcome-what: internal/cli now has a TestMain (internal/cli/main_test.go) that points JAIRA_HOME at a temp directory for the whole package and removes it afterwards. Swept ~/.jaira/state of every directory holding no regular file.
 outcome-why: "Tests that opened a store without setting JAIRA_HOME wrote sessions/ and locks/ into the real ~/.jaira, keyed by a t.TempDir() path that stops existing when the test ends: 34 per run of that package, 3115 collected on this machine, burying the two dozen entries that belong to real checkouts."
 outcome-resolves: "A per-package scan that counts ~/.jaira/state before and after each package now reports no growth anywhere; go test ./... green; ~/.jaira/state is down from 3173 directories and 38 MB to 23 and 636 KB, and the 23 are existing checkouts."
+review-summary: "One TestMain replaces a rule nobody could keep: 10 of the 26 test files in internal/cli set JAIRA_HOME and 16 did not, so forgetting was the default and the damage landed in the developer's home rather than in the test. Nothing outside test code changes, so there is nothing here for a user to notice and no NOTES.md line. The leak was measured per package rather than guessed - internal/cli was the only one."
 ---
 
 # Tests write their state into the real ~/.jaira
