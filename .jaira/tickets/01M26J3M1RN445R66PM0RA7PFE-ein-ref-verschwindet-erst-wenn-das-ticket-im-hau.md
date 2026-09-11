@@ -24,7 +24,7 @@ blocked-by: []
 commits:
   - fe864ec705086aafcd4b16fab0556d9dd2c3ceb7
 created-at: 2026-09-10T21:03:18Z
-updated-at: 2026-09-10T21:20:33Z
+updated-at: 2026-09-11T06:29:53Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-447398
 claimed-at: 2026-09-10T21:07:14Z
@@ -105,3 +105,4 @@ Ablauf jetzt, gegen echtes git belegt: nach 'archive' lebt der Ref weiter (die D
 'jaira delete' loescht den Ref weiter sofort. Das ist kein Widerspruch: Loeschen ist eine Absicht, kein Stadium des Fertigwerdens.
 
 Der Preis, den dieses Ticket einfuehrt, ist benannt und sichtbar gemacht statt verschwiegen: ein Branch, der nie gemergt wird, haelt seinen Ref. fetch und validate melden 'fertig seit N Tagen und nirgends angekommen', und 'jaira snapshot --drop' ist der ausdrueckliche Ausweg.
+- **2026-09-11 06:29 · Alexander Sacharov** — Antwort (Alexander): die Frist ist drei Tage, nicht sieben. Sein Argument ist das richtige - Reviews laufen hier schneller, und eine Woche ist lang genug, dass ein vergessener Branch keine Nachricht mehr ist, wenn endlich jemand davon erfaehrt. Default geaendert, 'landing-grace-days' in settings.json bleibt der Weg, es anders zu setzen.

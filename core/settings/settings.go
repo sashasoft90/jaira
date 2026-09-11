@@ -62,7 +62,7 @@ type Settings struct {
 	SnapshotEveryHours int `json:"snapshot-every-hours,omitempty"`
 
 	// LandingGraceDays is how long a finished ticket may go without arriving in
-	// a landing branch before jaira mentions it. Empty means seven.
+	// a landing branch before jaira mentions it. Empty means three.
 	LandingGraceDays int `json:"landing-grace-days,omitempty"`
 }
 
@@ -146,11 +146,15 @@ func (s Settings) SnapshotEvery() time.Duration {
 
 // LandingGrace returns how long a finished ticket may take to arrive before it
 // is worth mentioning.
+//
+// Three days, chosen against how long a review actually takes here rather than
+// as a round number: a week is long enough that a forgotten branch stops being
+// news by the time anybody hears about it.
 func (s Settings) LandingGrace() time.Duration {
 	if s.LandingGraceDays > 0 {
 		return time.Duration(s.LandingGraceDays) * 24 * time.Hour
 	}
-	return 7 * 24 * time.Hour
+	return 3 * 24 * time.Hour
 }
 
 // Landing returns the branches to check for a landed ticket, as revisions on

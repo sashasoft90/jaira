@@ -454,7 +454,7 @@ this is for.
 
 A branch that never gets merged would otherwise keep its ref for ever, so
 `jaira fetch` and `jaira validate` name any ticket that was finished here and
-has not arrived after a week. `jaira snapshot --drop <id>` is the way out, and
+has not arrived after three days. `jaira snapshot --drop <id>` is the way out, and
 it is deliberately a person's decision.
 
 ## Concurrency

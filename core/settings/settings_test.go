@@ -120,7 +120,7 @@ func TestSnapshotDefaults(t *testing.T) {
 	if s.SnapshotEvery() != 72*time.Hour {
 		t.Errorf("snapshot interval defaults to %v", s.SnapshotEvery())
 	}
-	if s.LandingGrace() != 7*24*time.Hour {
+	if s.LandingGrace() != 3*24*time.Hour {
 		t.Errorf("landing grace defaults to %v", s.LandingGrace())
 	}
 }
