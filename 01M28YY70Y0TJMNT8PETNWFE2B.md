@@ -24,7 +24,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T19:26:01Z
-updated-at: 2026-09-11T19:44:03Z
+updated-at: 2026-09-11T19:44:15Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-1116663
 claimed-at: 2026-09-11T19:26:19Z
@@ -44,7 +44,7 @@ body: |-
 
 ## Definition of Done
 
-- [ ] snapshot.json and fetch.json are keyed by repository (shared by all worktrees of one clone); a second worktree of the same repo does not trigger a snapshot or fetch when the first one ran within the interval; sessions and locks stay per working tree; tests cover the shared-clock behaviour across two worktrees
+- [x] snapshot.json and fetch.json are keyed by repository (shared by all worktrees of one clone); a second worktree of the same repo does not trigger a snapshot or fetch when the first one ran within the interval; sessions and locks stay per working tree; tests cover the shared-clock behaviour across two worktrees
 
 ## Options
 
