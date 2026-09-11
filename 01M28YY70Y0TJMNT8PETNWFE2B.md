@@ -24,10 +24,20 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T19:26:01Z
-updated-at: 2026-09-11T19:27:33Z
+updated-at: 2026-09-11T19:27:37Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-1116663
 claimed-at: 2026-09-11T19:26:19Z
+body: |-
+  ## Plan
+
+  - [ ] add Repo.CommonDir to core/gitrepo: git rev-parse --path-format=absolute --git-common-dir, identical from every worktree of one clone
+  - [ ] add Store.RepoStateDir in core/ticket: same home directory, keyed on the common dir instead of Root, falling back to the per-tree dir when git cannot answer
+  - [ ] point maybeSnapshot (internal/cli/snapshot.go) and maybeFetch (internal/cli/refs.go) at RepoStateDir; leave outbox, refs-seen, sessions and locks on the per-tree dir
+  - [ ] test: two worktrees of one fixture repo resolve to the same RepoStateDir, and a per-tree dir for two separate clones stays distinct
+  - [ ] test: after a stamped run in worktree A, snapshot.Due is false in worktree B
+  - [ ] note in core/release/NOTES.md that the snapshot and fetch clocks are now shared per clone
+  - [ ] go test ./... -race
 ---
 
 # Snapshot and fetch stamps are per worktree, so every new worktree snapshots at once
