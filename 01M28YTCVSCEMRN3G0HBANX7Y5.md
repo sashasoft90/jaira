@@ -24,7 +24,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T19:23:56Z
-updated-at: 2026-09-11T20:44:01Z
+updated-at: 2026-09-11T20:44:11Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-1114279
 claimed-at: 2026-09-11T19:25:39Z
@@ -52,3 +52,4 @@ question: "Bleibt VS5DFW im Backlog bestehen? Es beantwortet dieselbe Frage ande
 ## Progress
 - **2026-09-11 19:25 · Alexander Sacharov** — Zwei Fallen, beide im Bauen gefunden. Erstens: die Innenstile der Karte enden je auf einem vollen SGR-Reset, der auch den Box-Hintergrund loescht - refill in view.go fuellt nach jedem Reset nach, ausser dem letzten einer Zeile, sonst laeuft die Farbe bis zum Terminalrand. Zweitens, fuer Tests: lipgloss legt Vorder- und Hintergrund in EINE SGR-Sequenz, wo eine Zeile beides hat. Auf den Rahmenzeilen steht '38;5;240;48;5;236m', die Fuellung also nie allein - ein Test, der auf die ganze Sequenz '\x1b[48;5;236m' prueft, findet die Oberkante nicht und meldet faelschlich einen offenen Kasten.
 - **2026-09-11 20:44 · Alexander Sacharov** — Angenommen von Alex am 11.09. im Gespraech, Stueck fuer Stueck im laufenden Board angesehen. Die review-Lane wurde dabei uebersprungen, und das ist eine bewusste Luecke, keine erledigte Stufe: review heisst 'ein zweites Modell hat den Diff beurteilt', und der Autor des Codes war dasselbe Modell, das ihn haette pruefen sollen. Was stattfand, war menschliche Abnahme am laufenden Bild, nicht Modell-Review. Wer spaeter einen Fehler in diesen drei Tickets sucht: hier ist die Stelle, an der niemand mit frischen Augen draufgeschaut hat.
+- **2026-09-11 20:44 · Alexander Sacharov** — Die offene Frage dieses Tickets - bleibt VS5DFW bestehen - ist beantwortet: nein. VS5DFW ist durch QQ3EX4 ueberholt, es gibt keinen Rahmen mehr, dessen linke Kante eine Farbe tragen koennte. Der dort zusaetzlich gewuenschte Balken neben der Auswahl entfaellt ebenfalls, weil die Auswahl jetzt ganzflaechig gefuellt ist.
