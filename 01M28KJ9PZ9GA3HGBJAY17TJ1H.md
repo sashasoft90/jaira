@@ -1,7 +1,7 @@
 ---
 id: 01M28KJ9PZ9GA3HGBJAY17TJ1H
 title: "Das Board sendet, was es einreiht, und ein abgelegtes Ticket kommt nicht zurueck"
-status: backlog
+status: human
 ready: true
 creator: Alexander Sacharov
 goal: "Wer im Board arbeitet, sieht dieselbe Tafel wie alle anderen: was das Board schreibt geht raus, und was hier abgelegt wurde taucht nicht als Ref-Karte wieder auf"
@@ -21,9 +21,13 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T16:07:16Z
-updated-at: 2026-09-11T16:09:46Z
+updated-at: 2026-09-11T16:09:50Z
 assignee: Alexander Sacharov
 updated-by: Alexander Sacharov
+question: "Zwei Fehler behoben, beide aus meiner Ref-Arbeit. Eine Frage: der Hintergrundlauf des Boards sendet jetzt vor dem Lesen, alle zehn Minuten - reicht das, oder soll das Board sofort nach einer Aenderung senden?"
+outcome-what: "Das Board flusht seine Warteschlange im Hintergrundlauf, und refsync.Extra ueberspringt Tickets, die hier im Logbuch oder Archiv liegen"
+outcome-why: "Fuenf im Board abgenommene Tickets blieben als Ref-Karten stehen: das Board hatte nie gesendet, und ein abgelegtes Ticket kam ueber sein noch lebendes Ref zurueck auf die Tafel"
+outcome-resolves: "Beide Haelften der DoD mit je einem Test belegt, und der ganze Satz laeuft gruen"
 ---
 
 # Das Board sendet, was es einreiht, und ein abgelegtes Ticket kommt nicht zurueck
