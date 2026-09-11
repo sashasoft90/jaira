@@ -24,7 +24,8 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T19:26:01Z
-updated-at: 2026-09-11T19:26:01Z
+updated-at: 2026-09-11T19:26:16Z
+updated-by: Alexander Sacharov
 ---
 
 # Snapshot and fetch stamps are per worktree, so every new worktree snapshots at once
