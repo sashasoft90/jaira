@@ -24,8 +24,10 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T19:23:56Z
-updated-at: 2026-09-11T19:25:37Z
+updated-at: 2026-09-11T19:25:39Z
 updated-by: Alexander Sacharov
+claimed-by: DESKTOP-RFTCH11-1114279
+claimed-at: 2026-09-11T19:25:39Z
 ---
 
 # Die ausgewaehlte Karte ist gefuellt und oben geschlossen
