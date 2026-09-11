@@ -1,7 +1,7 @@
 ---
 id: 01M266HAGY954EW9K6T08566KF
 title: "Tickets reisen in eigenen Git-Refs, damit Zuweisungen ohne gemeinsamen Branch ankommen"
-status: review
+status: human
 ready: true
 creator: Alexander Sacharov
 goal: "Ein Ticket und sein Besitzer erreichen den Kollegen ueber refs/jaira/tickets/<id>, ohne dass ein Branch geteilt oder gemergt werden muss, und eine Zuweisung loest bei ihm eine Benachrichtigung aus"
@@ -14,15 +14,25 @@ blocked-by: []
 commits:
   - ec8c7e2b0e293869e0b84b3019a6b4d0fd4bc0aa
 created-at: 2026-09-10T17:41:04Z
-updated-at: 2026-09-11T06:35:07Z
+updated-at: 2026-09-11T11:22:17Z
 assignee: Alexander Sacharov
 updated-by: Alexander Sacharov
-claimed-by: DESKTOP-RFTCH11-244146
-claimed-at: 2026-09-10T18:17:46Z
+claimed-by: DESKTOP-RFTCH11-133823
+claimed-at: 2026-09-11T11:19:07Z
 question: "Zwei Fragen, bevor das weiterlaeuft: (1) Reicht dir, dass Tickets, die nur auf einem Ref liegen, als Zaehler in der Hinweiszeile stehen und 'jaira fetch' sie vollstaendig listet - oder sollen sie als eigene read-only Karten auf dem Board erscheinen? Letzteres ist ein Folgeticket, weil es einen Durchgangspfad in der Eingabebehandlung braucht. (2) Der Push geht erst nach dem Kommando raus und nur in einem Prozess, der selbst geschrieben hat. Ein reines Lesekommando fetcht damit nie von sich aus - willst du das so, oder soll 'jaira list' gelegentlich auch nachziehen?"
-outcome-what: "core/gitref, core/outbox, core/refsync, core/settings, core/notify, core/hook plus Anbindung an Schreibpfad, CLI (jaira fetch), Board und README"
-outcome-why: "Eine Zuweisung erreichte den Kollegen nicht: die Ticketdatei lag im Branch des Schreibers, und war der ungepusht, veraltet oder force-gepusht, sah der Empfaenger nicht einmal die Id"
-outcome-resolves: "Alle zehn Punkte der Definition of Done sind abgehakt und einzeln mit Proof belegt: Refs mit CAS und getrennten Fehlern fuer Rennen und Netz, konfigurierbares Board-Remote, alle fuenf Schreibbefehle pushen mit, Fetch plus Board-Anzeige, abschaltbare Benachrichtigung, optionaler Hook bei move und claim, Loeschen des Refs beim Logbuch, und Tests mit zwei Klonen eines Bare-Repos fuer Rennen, Uebernahme und den Merge zweier Branches"
+outcome-what: "second-model review of the git-refs feature (core/gitref, outbox, refsync, notify, hook, settings, fetch, board markers, mergebranches_test)"
+outcome-why: "diff verified against build + full test suite + source, all DoD lines confirmed; two non-blocking notes and two open implementer questions left for the person signing off"
+outcome-resolves: "review-summary, review-gaps, review-verdict, review-check written; approve with notes"
+review-summary: "Tickets now travel on refs/jaira/tickets/<id> instead of only living in a branch. core/gitref reads/writes/deletes that ref with compare-and-swap (--force-with-lease), separating a lost race (ErrRaceLost) from an unreachable network (ErrOffline). Every write goes through an outbox (core/outbox) so claim/create/move/note/dod stay offline-capable and flush opportunistically through the two real write gates (Store.Mutate/Create) via a WriteRecorder interface (core/refsync.Syncer). 'jaira fetch' pulls the refs and the board shows ref-only/unsent markers merged field-by-field with the local file (core/merge). core/notify sends a desktop notification (notify-send/osascript/PowerShell) only when a ticket is both mine and changed since last seen, gated by a new ~/.jaira/settings.json (remote, notify-off, hook). core/hook shells out to an optional script on move/claim with env-var contract, silent on failure. Logbook/archive intentionally leave the ref standing until the ticket lands in a configured landing branch, at which point core/snapshot reaps it - avoiding a window where a filed ticket is invisible to everyone. internal/cli/mergebranches_test.go proves two branches editing the same ticket merge field-aware via a real git merge driver."
+review-gaps: "One thing worth a look, not blocking: the DoD line 'a logbooked ticket deletes its ref' is satisfied indirectly, not immediately - RecordFiled keeps the ref alive until core/snapshot reaps it after the ticket lands in a landing branch (refsync.go:150-163, snapshot.go reap/Drop). That's a deliberate, documented tradeoff from an earlier ticket (avoids a window where a filed ticket is invisible to everyone) but reads differently from the DoD's literal wording; worth a one-line note in the DoD or README so a future reader doesn't file it as a bug. Process note, not a code gap: the ticket's own 'commits' field/diff handed to this review lane covers only ec8c7e2 (the delta since the last move, out of human), not the full feature - the bulk of the implementation (core/gitref, outbox, refsync, notify, hook, settings, fetch, mergebranches_test) landed in earlier commits already covered by this ticket's critique/optimize/testing loop passes. I additionally re-verified by building, running the full test suite for every listed package, and checking each DoD line against source rather than relying on the handed diff alone. Two open questions from the implementer (read-only ref-only cards on the board; whether 'jaira list' should also opportunistically fetch) are still unanswered in the ticket's question field and belong to whoever signs off next, not to this review. Otherwise: build and full test suite green, every DoD line checked against source/tests."
+review-verdict: "Matches the DoD: CAS with typed race/offline errors, configurable board remote, all five write commands recorded through the two store gates, fetch + board display with ref-only/unsent markers, opt-out desktop notification, optional hook, tests with two clones of a bare repo covering race/takeover/merge, and README covering the feature and the fork boundary. Approve, with the two gaps above noted for the record - the ref-deletion timing deserves a documentation tweak, not a rework."
+review-check: |-
+  1. cd into the repo and run: go build ./... - should exit 0 with no output.
+  2. Run: go test ./core/gitref/... ./core/outbox/... ./core/refsync/... ./core/notify/... ./core/hook/... ./core/settings/... ./internal/cli/... -run 'TestTwoBranches|TestAWriteOnTheStore|TestARejectedWrite|TestSecondWriterLosesTheRace' -v - every listed test should print PASS.
+  3. Make a throwaway bare repo: mkdir /tmp/board.git && git init --bare /tmp/board.git, then clone it twice into /tmp/a and /tmp/b.
+  4. In /tmp/a: jaira init, jaira create 'ping' --goal g --dod d --context c, then check git ls-remote /tmp/board.git 'refs/jaira/*' shows one ref.
+  5. In /tmp/b: jaira fetch - should list the ticket with its id and lane, without /tmp/b ever having the branch from /tmp/a (git branch -a in /tmp/b stays empty).
+  6. In /tmp/b, claim the ticket, then in /tmp/a try to move it - jaira should refuse and print who claimed it, read from the ref, not silently overwrite.
 ---
 
 ## Warum Refs und nicht Branches
