@@ -24,7 +24,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T19:23:56Z
-updated-at: 2026-09-11T19:25:39Z
+updated-at: 2026-09-11T19:25:51Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-1114279
 claimed-at: 2026-09-11T19:25:39Z
@@ -46,4 +46,4 @@ claimed-at: 2026-09-11T19:25:39Z
 <Steps, in order — filled in by the pre-process step, or by you.>
 
 ## Progress
-
+- **2026-09-11 19:25 · Alexander Sacharov** — Zwei Fallen, beide im Bauen gefunden. Erstens: die Innenstile der Karte enden je auf einem vollen SGR-Reset, der auch den Box-Hintergrund loescht - refill in view.go fuellt nach jedem Reset nach, ausser dem letzten einer Zeile, sonst laeuft die Farbe bis zum Terminalrand. Zweitens, fuer Tests: lipgloss legt Vorder- und Hintergrund in EINE SGR-Sequenz, wo eine Zeile beides hat. Auf den Rahmenzeilen steht '38;5;240;48;5;236m', die Fuellung also nie allein - ein Test, der auf die ganze Sequenz '\x1b[48;5;236m' prueft, findet die Oberkante nicht und meldet faelschlich einen offenen Kasten.
