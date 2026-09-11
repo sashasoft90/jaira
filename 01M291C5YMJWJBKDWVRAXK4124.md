@@ -13,7 +13,8 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T20:08:36Z
-updated-at: 2026-09-11T20:08:36Z
+updated-at: 2026-09-11T20:08:51Z
+updated-by: Alexander Sacharov
 ---
 
 # Die ausgewaehlte Karte leuchtet in ihrer Tag-Farbe, c schaltet um
