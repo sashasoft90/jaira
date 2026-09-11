@@ -1,7 +1,7 @@
 ---
 id: 01M26F9333EWZS2TN8EHPTQ3XT
 title: "Ein Snapshot-Branch traegt die Tafel als Dateien, ohne dass jemand ihn auscheckt"
-status: review
+status: human
 ready: true
 creator: Alexander Sacharov
 goal: "Ein elternloser Branch jaira/board haelt zu jedem Zeitpunkt genau die Tickets, die gerade auf Refs liegen, wird per Plumbing ohne Checkout geschrieben und kann nie mit den Arbeitsdateien kollidieren"
@@ -29,15 +29,19 @@ blocked-by: []
 commits:
   - fe864ec705086aafcd4b16fab0556d9dd2c3ceb7
 created-at: 2026-09-10T20:13:52Z
-updated-at: 2026-09-11T06:35:00Z
+updated-at: 2026-09-11T11:29:14Z
 updated-by: Alexander Sacharov
-claimed-by: DESKTOP-RFTCH11-447398
-claimed-at: 2026-09-10T21:07:00Z
+claimed-by: DESKTOP-RFTCH11-155213
+claimed-at: 2026-09-11T11:27:20Z
 assignee: Alexander Sacharov
 question: "Snapshot steht: elternloser Branch jaira/board, alle drei Tage im Hintergrund, board/<id>.md, kein Commit wenn sich nichts aendert. Zwei Fragen: (1) Reicht dir der Default von drei Tagen, oder soll er kuerzer sein? (2) Soll 'jaira snapshot' auch etwas sagen, wenn nichts zu tun war - im Moment sagt es 'already current'."
-outcome-what: "core/snapshot: Snapshot-Branch per Plumbing ohne Checkout, Hintergrundlauf nach dem Muster der Update-Pruefung, plus das Jaeten der Refs gelandeter Tickets"
-outcome-why: "Ein Ticket, das niemand bearbeitet, lebt nur auf seinem Ref - damit liegt ein unberuehrter Backlog nur auf dem Remote, und wer zum ersten Mal klont hat gar nichts"
-outcome-resolves: "Beide DoD-Punkte belegt: der Branch wird aus dem aktuellen Satz Refs per hash-object/mktree/commit-tree gebaut ohne den Arbeitsbaum zu beruehren, der erste Commit ist elternlos und jeder weitere haengt am vorigen, ein entfernter Ref fehlt im neuen Snapshot und bleibt in den vorigen lesbar, die Dateien liegen unter board/ statt .jaira/tickets/, zwei gleichzeitige Laeufe loesen per --force-with-lease auf, und ausgeloest wird im Hintergrund bei einem Stand aelter als drei Tage - nie auf dem Kommandopfad"
+outcome-what: "Review-Durchlauf gegen die DoD abgeschlossen"
+outcome-why: "Diff erfuellt beide DoD-Punkte, ein kleiner Test-Gap notiert"
+outcome-resolves: "PTQ3XT"
+review-summary: "core/snapshot baut jaira/board per hash-object/mktree/commit-tree neu aus dem aktuellen Satz Ticket-Refs, ohne Checkout: Dateien unter board/<id>.md, erster Commit elternlos, jeder weitere haengt am vorigen (Rev von refs/heads/<branch> als Parent/Lease), unveraendert wird gar nichts geschrieben (Tree-Hash-Vergleich), zwei Laeufe loesen per --force-with-lease auf, Branchname ueber settings.json konfigurierbar. Ausgeloest als abgekoppelter Hintergrundprozess alle drei Tage nach dem Muster der Update-Pruefung, nie auf dem Kommandopfad. Reaping (Ref loeschen) passiert direkt danach, nur fuer Tickets die in einer Landing-Branch (settings.json, Globs) gefunden werden. Zweiter Teil im selben Commit: logbook/archive loeschen den Ref nicht mehr sofort, sondern schreiben den Endzustand (RecordFiled), damit ein Ticket waehrend eines laufenden Reviews fuer alle sichtbar bleibt; fetch/validate melden gestrandete Tickets (nie gelandet) nach der Gnadenfrist."
+review-gaps: "Keine dedizierte Test-Abdeckung fuer den Konfliktfall zweier gleichzeitiger 'jaira snapshot'-Laeufe auf denselben Branch (--force-with-lease-Pfad in PushBranch) - der Mechanismus teilt sich Code mit dem laengst getesteten Ticket-Ref-Push, aber ein eigener Test dafuer fehlt. Sonst nichts: DoD-Punkte sind einzeln im Code und in Tests nachweisbar, NOTES.md wurde bereits in einem fruehen Commit dieser Serie geschrieben, build und alle betroffenen Pakete sind gruen."
+review-verdict: "Diff erfuellt beide DoD-Punkte des Tickets; ein kleiner Test-Gap beim Branch-Force-Push-Konflikt, kein Grund zur Ablehnung."
+review-check: "1. go build ./... im Repo-Root - muss ohne Fehler durchlaufen  2. go test ./core/snapshot/... ./core/gitref/... ./core/refsync/... ./core/settings/... ./internal/cli/... - alle ok  3. go test ./core/snapshot/ -run TestTheFirstSnapshotIsParentless -v - zeigt, dass der erste Commit ohne Parent ist  4. go test ./core/snapshot/ -run TestRemovingARefRemovesItFromTheNextSnapshotAndKeepsItInHistory -v - zeigt Added/Removed und dass ein entfernter Ref in alten Commits lesbar bleibt  5. go test ./core/refsync/ -run TestAFinishedTicketThatNeverLandedIsReported -v - zeigt, dass Filing den Ref nicht mehr sofort loescht"
 ---
 
 # Ein Snapshot-Branch traegt die Tafel als Dateien, ohne dass jemand ihn auscheckt
@@ -100,3 +104,4 @@ Reihenfolge im Lauf, nicht beliebig: erst schreiben, dann jaeten. Und was sich n
 3. Der Lauf ist die einzige Stelle, die den Remote nach seinem HEAD fragen darf ('git remote set-head origin -a'), wenn die Landebranch nicht aufloesbar ist. Beim Klon eines leeren Repos gibt es origin/HEAD nicht, und genau so ein Board ist der Normalfall bei jaira init - im Smoke-Test war es zuerst nicht aufgeloest und es wurde korrekt NICHTS gejaetet, danach hat der Lauf es selbst gesetzt.
 
 Hintergrundlauf ist eine Kopie des Musters aus der Update-Pruefung, mit denselben Gruenden: Stempel VOR dem Lauf (ein gescheiterter Lauf darf nicht beim naechsten Kommando erneut ausloesen), Kind mit JAIRA_NO_SNAPSHOT=1 als Rekursionsschutz, kein Wait, stdio auf DevNull, und nie aus einem Testbinary.
+- **2026-09-11 11:29 · Alexander Sacharov** — Review-Durchlauf: DoD gegen den Diff (fe864ec) geprueft, Code gelesen (core/snapshot, core/gitref, core/refsync, internal/cli/snapshot.go, internal/cli/fetch.go, core/ticket/store.go), build und relevante Testpakete gruen. Einziger gefundener Gap: --force-with-lease-Konflikt auf dem Snapshot-Branch selbst hat keinen dedizierten Test.
