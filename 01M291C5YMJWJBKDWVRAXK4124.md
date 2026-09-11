@@ -1,7 +1,7 @@
 ---
 id: 01M291C5YMJWJBKDWVRAXK4124
 title: "Die ausgewaehlte Karte leuchtet in ihrer Tag-Farbe, c schaltet um"
-status: backlog
+status: in-progress
 ready: true
 creator: Alexander Sacharov
 assignee: Alexander Sacharov
@@ -13,7 +13,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T20:08:36Z
-updated-at: 2026-09-11T20:08:53Z
+updated-at: 2026-09-11T20:08:57Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-1258931
 claimed-at: 2026-09-11T20:08:53Z
