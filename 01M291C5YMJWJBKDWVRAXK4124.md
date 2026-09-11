@@ -1,7 +1,7 @@
 ---
 id: 01M291C5YMJWJBKDWVRAXK4124
 title: "Die ausgewaehlte Karte leuchtet in ihrer Tag-Farbe, c schaltet um"
-status: in-progress
+status: human
 ready: true
 creator: Alexander Sacharov
 assignee: Alexander Sacharov
@@ -13,10 +13,14 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T20:08:36Z
-updated-at: 2026-09-11T20:09:52Z
+updated-at: 2026-09-11T20:09:56Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-1258931
 claimed-at: 2026-09-11T20:08:53Z
+question: "Bleibt es bei 15% auf 24-Bit-Terminals? Alex hat im Mockup 20 (25% in der Palette) am besten gefunden, aber dort war die ausgewaehlte Karte zufaellig die mit dem Cyan-Tag - der einzigen der acht Farben, die bei 25% ueberhaupt eine Farbe bleibt. Bei 170 oder 111 waere derselbe Screenshot grau gewesen. Der Vergleich lief danach ueber 27 (24-Bit, 15%), wo alle Toene stehen; von dort kommt die 15%. Wer das leiser oder lauter will, aendert glowMixTrue in internal/tui/glow.go - glowMix256 haengt nicht daran und darf nicht mit heruntergezogen werden."
+outcome-what: "Die Fuellung der ausgewaehlten Karte wird aus der Farbe ihres Tags gemischt statt neutral grau zu bleiben; c schaltet um und die Fusszeile nennt den naechsten Druck; gemischt wird 15% auf einem 24-Bit-Terminal und 45% sonst, beides aufwaerts von Grau 237"
+outcome-why: "Die Fuellung sagte nur wo der Cursor steht, obwohl sie im selben Feld auch sagen kann worum es geht; und ein einzelner Mischwert geht nicht, weil unter etwa 45% jede Tag-Farbe auf die Graustufenleiter der 256er-Palette faellt"
+outcome-resolves: "Die ausgewaehlte Karte traegt den Ton ihres Tags, keine der acht vergebenen Tag-Farben landet auf einem Grau, eine Karte ohne farbiges Tag bleibt neutral, und c stellt das Ganze ab. go test ./... -race gruen, 24 Pakete"
 ---
 
 # Die ausgewaehlte Karte leuchtet in ihrer Tag-Farbe, c schaltet um
