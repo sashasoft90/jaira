@@ -102,8 +102,7 @@ func Execute(version string) int {
 	// After the command, not during it: sending happens once, and it happens
 	// even when the command failed, because a ticket that was written is a
 	// ticket the team should see.
-	flushRefs()
-	maybeSnapshotIfOpened()
+	afterCommand()
 	if err == nil {
 		return ExitOK
 	}

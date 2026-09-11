@@ -94,9 +94,33 @@ func fileOnRefOnly(s *ticket.Store, t *ticket.Ticket) (onRefOnly bool) {
 // one is due — does not have to find the board a second time.
 var openedStore *ticket.Store
 
-// maybeSnapshotIfOpened takes the board's periodic backup, but only if a
-// command actually opened a board.
-func maybeSnapshotIfOpened() { maybeSnapshot(openedStore) }
+// afterCommand is the background work that follows any command: send what this
+// process queued, bring the refs up to date, and take the board's backup when
+// one is due.
+//
+// None of it is on the command path. The flush only runs when this process
+// actually wrote something, and the other two only decide — a file read — and
+// leave the work to a detached child. That is what lets a read command stay
+// instant while somebody who only ever reads still learns that a ticket was
+// assigned to them.
+func afterCommand() {
+	flushRefs()
+	maybeFetch(openedStore)
+	maybeSnapshot(openedStore)
+}
+
+// maybeFetch spawns a detached 'jaira fetch' when the last one is older than
+// the configured interval.
+//
+// Deliberately not inside 'jaira list': a read command must never wait for a
+// remote. The fetch happens beside the command, in another process, and its
+// result is there for the next one.
+func maybeFetch(s *ticket.Store) {
+	if s == nil || refs.Usable() != nil {
+		return
+	}
+	refs.SpawnFetch(s.StateDir(), s.Root, settings.Load().FetchEvery())
+}
 
 // flushRefs sends what this command queued, and is called once after the
 // command has finished — including after it failed, because a ticket the

@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/BeMuCa/jaira/core/gitref"
+	"github.com/BeMuCa/jaira/core/refsync"
 	"github.com/BeMuCa/jaira/core/snapshot"
 )
 
@@ -60,6 +61,10 @@ type Settings struct {
 	// days: every participant's clone holds the refs, so the board survives any
 	// one machine, and this is for the slow cases only.
 	SnapshotEveryHours int `json:"snapshot-every-hours,omitempty"`
+
+	// FetchEveryMinutes is how often the ticket refs are brought up to date in
+	// the background. Empty means ten minutes.
+	FetchEveryMinutes int `json:"fetch-every-minutes,omitempty"`
 
 	// LandingGraceDays is how long a finished ticket may go without arriving in
 	// a landing branch before jaira mentions it. Empty means three.
@@ -142,6 +147,14 @@ func (s Settings) SnapshotEvery() time.Duration {
 		return time.Duration(s.SnapshotEveryHours) * time.Hour
 	}
 	return snapshot.DefaultEvery
+}
+
+// FetchEvery returns how often the refs are refreshed in the background.
+func (s Settings) FetchEvery() time.Duration {
+	if s.FetchEveryMinutes > 0 {
+		return time.Duration(s.FetchEveryMinutes) * time.Minute
+	}
+	return refsync.DefaultFetchEvery
 }
 
 // LandingGrace returns how long a finished ticket may take to arrive before it

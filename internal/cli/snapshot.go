@@ -75,7 +75,7 @@ is older than three days.`,
 			if err != nil {
 				return err
 			}
-			_ = snapshot.WriteStamp(s.StateDir(), snapshot.Stamp{RanAt: time.Now().UTC(), Commit: res.Commit})
+			_ = snapshot.WriteStamp(s.StateDir(), snapshot.Stamp{RanAt: time.Now().UTC(), Note: res.Commit})
 
 			if g.jsonOut {
 				return emit(cmd.OutOrStdout(), res)
@@ -123,15 +123,7 @@ func maybeSnapshot(s *ticket.Store) {
 	if s == nil || refs.Usable() != nil {
 		return
 	}
-	if !snapshot.Due(s.StateDir(), settings.Load().SnapshotEvery()) {
-		return
-	}
-	// Stamped before spawning, so a child that dies or hangs cannot make the
-	// next command spawn another.
-	if err := snapshot.WriteStamp(s.StateDir(), snapshot.Stamp{RanAt: time.Now().UTC()}); err != nil {
-		return
-	}
-	_ = snapshot.SpawnRun()
+	snapshot.SpawnRun(s.StateDir(), s.Root, settings.Load().SnapshotEvery())
 }
 
 func handles(ids []string) []string {
