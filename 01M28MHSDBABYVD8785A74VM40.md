@@ -21,7 +21,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T16:24:28Z
-updated-at: 2026-09-11T16:38:18Z
+updated-at: 2026-09-11T16:38:41Z
 assignee: Alexander Sacharov
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-630371
@@ -45,4 +45,14 @@ claimed-at: 2026-09-11T16:24:41Z
 <Steps, in order — filled in by the pre-process step, or by you.>
 
 ## Progress
+- **2026-09-11 16:38 · Alexander Sacharov** — Gebaut. Was dabei entschieden wurde und nicht im Ticket stand:
 
+1. Der Mechanismus bleibt, nur der Schalter geht aus. logbook-on-entry existiert weiter und laesst sich auf einer terminalen Lane setzen - die mitgelieferten Lanes haben ihn nicht mehr. Ein Board, das wirklich eine Tuer will, kann sie sich bauen; niemand bekommt sie, ohne zu fragen. Deshalb behalten auch die Tests den Durchgangs-Fall, sie erklaeren ihn sich jetzt nur selbst statt sich auf den Default zu verlassen.
+
+2. Der Schnitt ueberlebt eine kaputte Datei. FileLane meldet unlesbare Tickets als PartialError; logbookAll behandelt das als Warnung und legt die lesbaren trotzdem ab. Andernfalls haette eine einzige kaputte Datei den ganzen Schnitt blockiert - und genau dann greift jemand wieder zu git mv, was Issue #6 als das eigentliche Uebel beschreibt.
+
+3. Die Warnung geht in den Fehlerstrom des Kommandos, nicht nach os.Stderr: sonst sieht sie kein Test, und ungetestete Warnungen verschwinden irgendwann still.
+
+4. Die Schwelle im Board ist eine Zahl, keine Regel: bei zehn fertigen Tickets erscheint eine Zeile, sonst passiert nichts. Ref-only-Tickets zaehlen nicht mit - sie gehoeren diesem Klon nicht zum Ablegen.
+
+Handprobe: drei Tickets bis done gefahren, alle drei bleiben stehen; jaira logbook --all legt genau diese drei in den Tagesordner und nennt jede Datei mit ihrem restore-Pfad.
