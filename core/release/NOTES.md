@@ -36,8 +36,8 @@ Format rules — read before editing:
 
 ## 0.1.2
 
-- The running version moved out of both footers to its own line in the top left corner of the board and the launcher — look there, not at the bottom, for which binary you are in and whether a newer one is published.
-- A build from source now names itself `jaira dev` in that corner instead of staying silent; it still claims no release and still never checks for one, so nothing about `jaira self upgrade` changed.
+- Look for the running version in the top-left corner of the board and the launcher; the footer no longer carries it, so a script or a screenshot that read the last line for it must read the first instead.
+- A source build now names itself `jaira dev` in that corner instead of staying silent, so you can tell which binary is running when several are installed — this deliberately reverses the 0.1.1 rule that the line only speaks when it can name a release.
 
 ## 0.1.1
 

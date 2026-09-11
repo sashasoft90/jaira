@@ -1,8 +1,8 @@
 package tag
 
 import (
-	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -368,14 +368,16 @@ func TestSaveWritesViaTempFileAndRename(t *testing.T) {
 	if err := os.WriteFile(Path(root), []byte("ui: 33\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// Hold a handle on the file as it stands before Save. A rename swaps the
-	// directory entry and leaves this handle attached to the file that was
-	// there before, so a read through it afterwards still yields the old bytes,
-	// whereas an in-place truncate-and-write would push the new bytes through
-	// this very same handle. Surviving old bytes are the property the atomic
-	// write is bought for — a reader caught mid-write sees the previous file
-	// whole — so pinning them pins the thing that matters rather than a proxy
-	// for it.
+	// Pin the file as it stands before Save by giving it a second name. A
+	// rename replaces the directory entry Path(root) points at; the file that
+	// was there keeps living under the link, so reading the link afterwards
+	// still yields the old bytes, whereas an in-place truncate-and-write would
+	// show the new ones under both names. Surviving old bytes are the property
+	// the atomic write is bought for — a reader caught mid-write sees the
+	// previous file whole — so pinning them pins the thing that matters rather
+	// than a proxy for it. The link lives outside .jaira so the check further
+	// down, that no temporary file is left behind, still sees an empty
+	// directory beside the registry.
 	//
 	// Not os.SameFile over a pair of os.Stat results, which is the obvious way
 	// to write this and is unfalsifiable on Windows: there os.Stat records only
@@ -386,21 +388,15 @@ func TestSaveWritesViaTempFileAndRename(t *testing.T) {
 	// did. It went green on linux and macos and red on windows-latest for
 	// exactly that reason.
 	//
-	// And not a plain os.Open, which on Windows asks for FILE_SHARE_READ and
-	// FILE_SHARE_WRITE but not FILE_SHARE_DELETE (syscall.Open); a handle held
-	// that way forbids the replacement and would make Save itself fail rather
-	// than the assertion. os.Root opens with delete sharing, so the rename
-	// under test still goes through.
-	dir, err := os.OpenRoot(root + "/.jaira")
-	if err != nil {
+	// And not an open handle held across the Save, whether from os.Open or from
+	// os.Root: on Windows a handle on the rename target makes MoveFileEx fail
+	// with "Access is denied", so Save itself dies and the test reports a
+	// product fault that is not there. Delete sharing does not rescue it. A
+	// hard link holds no handle at all, and NTFS supports it.
+	link := filepath.Join(root, "tags-before")
+	if err := os.Link(Path(root), link); err != nil {
 		t.Fatal(err)
 	}
-	defer dir.Close()
-	before, err := dir.Open(FileName)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer before.Close()
 
 	reg, err := Load(root)
 	if err != nil {
@@ -411,12 +407,12 @@ func TestSaveWritesViaTempFileAndRename(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	old, err := io.ReadAll(before)
+	old, err := os.ReadFile(link)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if string(old) != "ui: 33\n" {
-		t.Errorf("Save wrote in place: the handle opened before Save reads %q, want the pre-Save bytes", old)
+		t.Errorf("Save wrote in place: the file linked before Save reads %q, want the pre-Save bytes", old)
 	}
 	// And no temporary file is left behind in .jaira.
 	ents, err := os.ReadDir(root + "/.jaira")
