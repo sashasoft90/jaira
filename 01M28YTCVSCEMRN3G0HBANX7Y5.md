@@ -1,7 +1,7 @@
 ---
 id: 01M28YTCVSCEMRN3G0HBANX7Y5
 title: Die ausgewaehlte Karte ist gefuellt und oben geschlossen
-status: in-progress
+status: human
 ready: true
 creator: Alexander Sacharov
 assignee: Alexander Sacharov
@@ -24,13 +24,14 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T19:23:56Z
-updated-at: 2026-09-11T19:29:51Z
+updated-at: 2026-09-11T19:30:22Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-1114279
 claimed-at: 2026-09-11T19:25:39Z
-outcome-what: "Die ausgewaehlte Karte wird ganzflaechig gefuellt, Rahmen eingeschlossen, einen 256-Farben-Schritt neben dem Terminalhintergrund; die geteilte Border-Reihe gehoert jetzt der ausgewaehlten Karte statt der Karte darueber"
+outcome-what: "Die ausgewaehlte Karte wird ganzflaechig gefuellt, Rahmen eingeschlossen, einen 256-Farben-Schritt neben dem Terminalhintergrund (236 dunkel, 253 hell, Richtung aus tea.BackgroundColorMsg); die geteilte Border-Reihe gehoert jetzt der ausgewaehlten Karte statt der Karte darueber"
 outcome-why: "Auf einer vollen Spalte war der fette Titel als einziges Auswahlmerkmal nicht zu finden, weil jede Karte ohnehin eine Tag-Farbe im Rahmen traegt; und ohne die geteilte Reihe war die Auswahl oben offen, die Fuellung begann mitten im Kasten"
-outcome-resolves: "Der Cursor ist ohne Lesen zu finden, und die Auswahl ist an allen vier Seiten geschlossen, egal an welcher Stelle der Spalte sie steht"
+outcome-resolves: "Der Cursor ist ohne Lesen zu finden, und die Auswahl ist an allen vier Seiten geschlossen, egal an welcher Stelle der Spalte sie steht. Alex hat den Stand am 11.09. im laufenden Board angesehen und angenommen: 'край появляется когда тикет выбран чтобы не было прыжков - подходит'. go test ./... -race gruen, 24 Pakete"
+question: "Bleibt VS5DFW im Backlog bestehen? Es beantwortet dieselbe Frage anders - nicht ausgewaehlt weisser Rahmen mit farbiger linker Kante, ausgewaehlt ganzer Rahmen in Tag-Farbe plus Balken daneben (Berk, 08.09.). Die Fuellung ist ein eigener Kanal und kollidiert im Code nicht damit, aber beide zusammen sind drei Merkmale fuer eine Auswahl. Entweder VS5DFW bleibt wie beschrieben, oder sein Balken-Teil faellt weg, weil die Fuellung ihn ersetzt."
 ---
 
 # Die ausgewaehlte Karte ist gefuellt und oben geschlossen
