@@ -24,7 +24,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T19:23:56Z
-updated-at: 2026-09-11T19:25:51Z
+updated-at: 2026-09-11T19:26:01Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-1114279
 claimed-at: 2026-09-11T19:25:39Z
@@ -34,7 +34,7 @@ claimed-at: 2026-09-11T19:25:39Z
 
 ## Definition of Done
 
-- [ ] Die ausgewaehlte Karte ist ganzflaechig gefuellt, Rahmen eingeschlossen; ihre Oberkante steht auch dann, wenn sie nicht die erste Karte der Spalte ist; die Fuellung folgt der Terminalfarbe hell/dunkel; die Fuellung laeuft nicht ueber den Kartenrand hinaus; die Kartenhoehe und die Budget-Rechnung bleiben unveraendert; go test ./... -race gruen
+- [x] Die ausgewaehlte Karte ist ganzflaechig gefuellt, Rahmen eingeschlossen; ihre Oberkante steht auch dann, wenn sie nicht die erste Karte der Spalte ist; die Fuellung folgt der Terminalfarbe hell/dunkel; die Fuellung laeuft nicht ueber den Kartenrand hinaus; die Kartenhoehe und die Budget-Rechnung bleiben unveraendert; go test ./... -race gruen
 
 ## Options
 
