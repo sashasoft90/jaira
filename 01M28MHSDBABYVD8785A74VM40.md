@@ -1,7 +1,7 @@
 ---
 id: 01M28MHSDBABYVD8785A74VM40
 title: "Das Logbuch wird abgelegt, wenn ein Mensch es sagt, nicht wenn ein Ticket fertig wird"
-status: in-progress
+status: human
 ready: true
 creator: Alexander Sacharov
 goal: "Fertige Tickets sammeln sich in done, und wer seine Stunden eintraegt, legt sie mit einem Befehl als Tagesordner ab - das Board sagt Bescheid, wenn sich viel angesammelt hat, entscheidet aber nichts"
@@ -21,11 +21,15 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T16:24:28Z
-updated-at: 2026-09-11T16:38:41Z
+updated-at: 2026-09-11T16:38:45Z
 assignee: Alexander Sacharov
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-630371
 claimed-at: 2026-09-11T16:24:41Z
+question: "Zwei Fragen: (1) die Schwelle fuer die Board-Meldung steht auf zehn fertigen Tickets - passt das, oder lieber einstellbar? (2) WXQ9PT wartet in signoff und verlangt das Gegenteil (done ist danach leer) - markiere ich es als abgeloest, oder machst du das beim Abnehmen?"
+outcome-what: "logbook-on-entry aus den mitgelieferten Lanes entfernt, jaira logbook --all als Handschnitt, Board-Meldung ab zehn fertigen Tickets"
+outcome-why: "Ein Move nach done nahm 49 fremde fertige Tickets mit ins Logbuch (Issue #6) - Ablegen ist Buchhaltung und faellt Tage spaeter, Fertigwerden ist eine Aussage ueber die Arbeit"
+outcome-resolves: Jeder Teil der DoD mit Test belegt und von Hand gegengeprueft
 ---
 
 # Das Logbuch wird abgelegt, wenn ein Mensch es sagt, nicht wenn ein Ticket fertig wird
