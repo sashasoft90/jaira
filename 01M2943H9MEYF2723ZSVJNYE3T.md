@@ -20,7 +20,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T20:56:18Z
-updated-at: 2026-09-11T20:56:39Z
+updated-at: 2026-09-11T21:00:29Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-1358160
 claimed-at: 2026-09-11T20:56:31Z
@@ -30,7 +30,7 @@ claimed-at: 2026-09-11T20:56:31Z
 
 ## Definition of Done
 
-- [ ] go test ./... with HOME pointed at an empty directory creates nothing under it; the tests that leaked are identified and isolated; ~/.jaira/state holds only directories whose checkout still exists
+- [x] go test ./... with HOME pointed at an empty directory creates nothing under it; the tests that leaked are identified and isolated; ~/.jaira/state holds only directories whose checkout still exists
 
 ## Options
 
