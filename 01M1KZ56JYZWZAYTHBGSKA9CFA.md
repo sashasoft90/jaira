@@ -1,7 +1,7 @@
 ---
 id: 01M1KZ56JYZWZAYTHBGSKA9CFA
 title: Mehrzeilige Ticket-Felder behalten ihre Zeilen in der Detailansicht
-status: signoff
+status: done
 ready: true
 creator: BeMuCa
 assignee: BeMuCa
@@ -10,9 +10,15 @@ context: "Berk am 03.09.: review-check soll durchnummerierte Schritte als Liste 
 definition-of-done: Ein review-check mit einem Schritt je Zeile zeigt im TUI-Detail eine Zeile je Schritt (haengender Einzug unter der Label-Spalte); bestehende einzeilige Felder rendern unveraendert; ein Test deckt ein mehrzeiliges Feld ab
 tags: []
 blocked-by: []
-commits: []
+commits:
+  - 4cf02494cf6622760d4a68b1cdf9079dfb1684fa
+  - 52732e16cd22612779fe5de1ffd097a550b7ffd3
+  - 8e74d5853f5958dbe981c0e3f067ea07fec7a2b5
+  - 93b6e13e3bb5812dd1610d51b73866441afeb0df
+  - 842e83709fe6b40494b39217b4cda2fb49b00046
+  - b36161b310fb80ef438c33fd1cbb0e881979a9ab
 created-at: 2026-09-03T15:45:47Z
-updated-at: 2026-09-11T15:53:25Z
+updated-at: 2026-09-11T16:04:10Z
 claimed-by: EE-3NX6GL3-2629914
 claimed-at: 2026-09-03T15:49:13Z
 updated-by: Alexander Sacharov
