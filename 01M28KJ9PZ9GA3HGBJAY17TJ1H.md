@@ -21,7 +21,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T16:07:16Z
-updated-at: 2026-09-11T16:09:43Z
+updated-at: 2026-09-11T16:09:46Z
 assignee: Alexander Sacharov
 updated-by: Alexander Sacharov
 ---
@@ -43,4 +43,4 @@ updated-by: Alexander Sacharov
 <Steps, in order — filled in by the pre-process step, or by you.>
 
 ## Progress
-
+- **2026-09-11 16:09 · Alexander Sacharov** — Beim Anlegen dieses Tickets selbst aufgefallen: es hatte keine Datei, weil 0.1.3 auf einem Board mit Remote nur das Ref schreibt - 'jaira dod' verweigerte mit 'pull it first'. Das ist die Absicht, aber fuer ein Ticket, das mit seinem Code in einen PR fahren soll, heisst es: erst 'jaira pull', dann arbeiten. Sonst faehrt der PR ohne sein Ticket.
