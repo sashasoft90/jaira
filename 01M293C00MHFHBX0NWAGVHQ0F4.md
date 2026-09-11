@@ -26,7 +26,8 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T20:43:27Z
-updated-at: 2026-09-11T20:43:27Z
+updated-at: 2026-09-11T20:43:59Z
+updated-by: Alexander Sacharov
 ---
 
 # Berk sagen, dass die Karten keinen Rahmen mehr haben
