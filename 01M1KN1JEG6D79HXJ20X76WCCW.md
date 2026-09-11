@@ -1,7 +1,7 @@
 ---
 id: 01M1KN1JEG6D79HXJ20X76WCCW
 title: Der verwaltete Block schickt ein gestartetes Ticket bis zum naechsten Human-Step
-status: signoff
+status: done
 ready: true
 creator: BeMuCa
 assignee: BeMuCa
@@ -11,9 +11,14 @@ definition-of-done: "Der verwaltete Block enthaelt die Regel (Start -> durchfahr
 tags: []
 blocked-by: []
 commits:
+  - 454cbbc71df069e3508f807722142ba28d8005ec
+  - eb269d13eae56c5f4867f417e3ac2abee07bf6bc
+  - 4cf02494cf6622760d4a68b1cdf9079dfb1684fa
   - ddc6c7a0e611d4ba84f5101ad3260cbffbf450d1
+  - 842e83709fe6b40494b39217b4cda2fb49b00046
+  - b36161b310fb80ef438c33fd1cbb0e881979a9ab
 created-at: 2026-09-03T12:49:02Z
-updated-at: 2026-09-11T15:53:09Z
+updated-at: 2026-09-11T16:05:16Z
 claimed-by: EE-3NX6GL3-2626905
 claimed-at: 2026-09-03T15:47:55Z
 updated-by: Alexander Sacharov
