@@ -21,7 +21,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T16:24:28Z
-updated-at: 2026-09-11T16:24:49Z
+updated-at: 2026-09-11T16:38:18Z
 assignee: Alexander Sacharov
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-630371
@@ -32,7 +32,8 @@ claimed-at: 2026-09-11T16:24:41Z
 
 ## Definition of Done
 
-- [ ] ein Move nach done legt nichts mehr ab: das Ticket bleibt in done stehen, und die Meldung sagt, dass es fertig ist, nicht dass es abgelegt wurde; 'jaira logbook --all' legt alles aus der terminalen Lane in den heutigen Ordner und nennt, was es abgelegt hat; 'jaira logbook <id>' legt weiterhin genau eines ab und 'jaira logbook' ohne Argument listet nur; das Board zeigt eine Zeile, sobald sich in der terminalen Lane mehr als eine einstellbare Zahl angesammelt hat, und nennt den Befehl - es legt nie selbst ab; Tests decken ab, dass ein Move nichts mitnimmt, dass --all den ganzen Satz nimmt, und dass die Zeile ab der Schwelle erscheint
+- [x] ein Move nach done legt nichts mehr ab: das Ticket bleibt in done stehen, und die Meldung sagt, dass es fertig ist, nicht dass es abgelegt wurde; 'jaira logbook --all' legt alles aus der terminalen Lane in den heutigen Ordner und nennt, was es abgelegt hat; 'jaira logbook <id>' legt weiterhin genau eines ab und 'jaira logbook' ohne Argument listet nur; das Board zeigt eine Zeile, sobald sich in der terminalen Lane mehr als eine einstellbare Zahl angesammelt hat, und nennt den Befehl - es legt nie selbst ab; Tests decken ab, dass ein Move nichts mitnimmt, dass --all den ganzen Satz nimmt, und dass die Zeile ab der Schwelle erscheint
+  proof: Move nach done legt nichts mehr ab; jaira logbook --all legt den ganzen terminalen Satz in den Tagesordner; das Board meldet ab zehn fertigen Tickets und legt nie selbst ab; drei Tests plus Handprobe
 
 ## Options
 
