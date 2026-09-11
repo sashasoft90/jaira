@@ -14,7 +14,7 @@ blocked-by: []
 commits:
   - ec8c7e2b0e293869e0b84b3019a6b4d0fd4bc0aa
 created-at: 2026-09-10T17:41:04Z
-updated-at: 2026-09-11T11:22:17Z
+updated-at: 2026-09-11T11:23:45Z
 assignee: Alexander Sacharov
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-133823
@@ -299,6 +299,13 @@ Der Zwei-Branch-Merge ist jetzt gegen echtes git belegt (internal/cli/mergebranc
 Beim Schreiben des Tests aufgefallen und beachtet: 'move ... --to pre-process' scheitert mit exit 3, weil diese Lane die Option 'planning' verlangt. Der Test benutzt deshalb todo. Das ist kein Fehler, sondern der bestehende Options-Gate - er greift unveraendert weiter.
 
 Offen und absichtlich nicht in diesem Ticket: Ref-Tickets als eigene, read-only Karten auf dem Board (siehe 1). Das gehoert in ein Folgeticket.
+- **2026-09-11 11:23 · Alexander Sacharov** — Review durch eine zweite Sitzung auf einem anderen Modell (Sonnet, eigener Kontext, ohne Schreibrecht am Code): Vertrag erfuellt, 'approve with notes'. Zwei Anmerkungen, beide bearbeitet:
+
+1. Die DoD-Zeile ueber das Loeschen des Refs beim Logbuch las sich anders als der Code arbeitet - das Loeschen ist seit RA7PFE bis zum Landen aufgeschoben. Zeile umformuliert statt sie stehenzulassen: sonst legt in einem halben Jahr jemand genau das als Fehler an.
+
+2. Prozessanmerkung des Reviewers, die stimmt und festgehalten gehoert: der Lane wurde nur der Diff seit dem letzten Move gereicht (ein Commit), nicht das ganze Feature - die Implementierung liegt in frueheren Commits. Er hat deshalb selbst gebaut, die Testsuite jedes genannten Pakets laufen lassen und jede DoD-Zeile am Quelltext geprueft, statt sich auf den gereichten Diff zu verlassen. Wer den naechsten Review-Lauf an einem lange laufenden Ticket macht, sollte dasselbe tun.
+
+Die beiden offenen Fragen im question-Feld sind inzwischen von Alexander beantwortet: 'jaira list' fetcht nicht selbst (dafuer gibt es PP5SCQ, den Hintergrund-Fetch), und Ref-Tickets sind inzwischen echte Karten auf dem Board.
 
 ## Definition of Done
 
@@ -314,7 +321,7 @@ Offen und absichtlich nicht in diesem Ticket: Ref-Tickets als eigene, read-only 
   proof: core/notify + announceArrivals: nur Mine und nur Changed, abschaltbar per notify-off; refs-seen.json macht 'einmal statt bei jedem Fetch'
 - [x] Ein optionaler Hook bei move und claim wird aufgerufen, ohne dass jaira eine Abhaengigkeit mitbringt
   proof: core/hook/hook.go, 5 Tests; fireHook bei move und claim; Smoke-Test mit echtem Skript
-- [x] Ein ins Logbuch gelegtes Ticket loescht sein Ref
+- [x] Ein ins Logbuch gelegtes Ticket gibt sein Ref frei: der Endzustand wird daraufgeschrieben, und entfernt wird es, sobald das Ticket in einer Landebranch angekommen ist (RA7PFE) - sofortiges Loeschen wuerde das Ticket fuer alle unsichtbar machen, solange der Branch auf den Merge wartet
   proof: core/ticket/store.go Logbook/Archive/Delete -> recordDelete -> OpDelete; TestRecordDeleteTakesTheRefDown, TestDeleteTakesTheTicketOffEveryBoard
 - [x] Tests mit zwei Klonen eines Bare-Repos belegen Rennen, Uebernahme und den Merge zweier Branches am selben Ticket
   proof: internal/cli/mergebranches_test.go: echter git merge zweier Branches, status nach Lane-Fortschritt, beide tags erhalten, keine Konfliktmarker
