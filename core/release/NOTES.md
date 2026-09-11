@@ -15,6 +15,7 @@ Format rules — read before editing:
 
 ## Unreleased
 
+- Read the new README sections before using any of this: what git is actually doing underneath, how two people hand a ticket over, and three recordings of it happening between two machines.
 - Tickets now travel on a git ref of their own (`refs/jaira/tickets/<id>`), so a ticket reaches whoever it is assigned to without anybody sharing a branch: run `jaira fetch` after cloning, and again whenever you want to see what the team has moved.
 - Run `jaira pull <id>` to take a ticket over: it records you as its assignee on the ref and only then writes the file here, so exactly one clone holds a ticket at a time — a ticket somebody else has pulled is refused, naming them, and `--steal` takes it anyway and writes a note on the ticket saying so.
 - Run `jaira release <id>` to hand a ticket back: it clears you as assignee on the ref and removes the local file, and until you do, nobody else can pull it — an assignment is a reservation.

@@ -301,6 +301,11 @@ the property that matters: this ticket is in no branch you have. A ticket that
 has just become yours also raises a desktop notification, once, and the board
 fetches on its own every minute.
 
+<img src="docs/img/demo-machines.gif" alt="Two machines, two clones, one remote: a ticket filed on one turns up on the other" width="100%">
+
+Two containers, two hostnames, two sets of branches, and nothing in common but
+the remote. Nobody pushed a branch and nobody sent a message.
+
 **The push is a compare-and-swap.** Each ref commit takes the SHA you read as
 its parent, so a stale write is a non-fast-forward that git rejects by itself,
 and `--force-with-lease` covers the first write, where no commit has a parent
@@ -350,7 +355,42 @@ file in their branch and their pull request; they lose the ref channel, not the
 board. A board in a directory that is not a repository, or with no remote,
 simply does not use refs and behaves exactly as before.
 
+## What git is actually doing
+
+No part of this is a protocol of its own. Every step is a git command you could
+type yourself, which is the reason it works against GitHub, GitLab or a bare
+repository on a shared drive without any of them knowing what jaira is.
+
+| Step | The git underneath |
+|---|---|
+| write a ticket to its ref | `hash-object -w`, `mktree`, `commit-tree` — a commit whose tree holds `<id>.md`, with the SHA you read as its parent |
+| send it | `push --force-with-lease=<ref>:<the SHA you read>` — refused if anybody wrote since |
+| see what exists | `ls-remote origin 'refs/jaira/tickets/*'` — the whole board in one round trip |
+| collect it | `fetch --prune origin '+refs/jaira/tickets/*:refs/jaira/tickets/*'` |
+| read one without a checkout | `show refs/jaira/tickets/<id>:<id>.md` |
+| a ticket's history | `log refs/jaira/tickets/<id>` — every move it ever made |
+| has it landed | `rev-list -1 <branch> -- .jaira/logbook/*/<id>* .jaira/archive/<id>*` |
+| the backup branch | the same three plumbing commands, one tree with every ticket in it |
+
+Two consequences worth stating, because both are load-bearing:
+
+**The compare-and-swap is git's, not ours.** A ref update is atomic at the
+hosting provider, and `--force-with-lease` refuses when the ref moved since you
+read it. That is the whole concurrency mechanism: no server decides who wins,
+the remote's own ref lock does.
+
+**Nothing here is visible to anyone who does not want it.** `refs/jaira/*` is
+outside `refs/heads`, so the default refspec never fetches it, it is not a
+branch, and it does not appear in a hosting provider's web UI. A teammate who
+does not use jaira clones the repository and sees an ordinary project.
+
 ## How two people hand work over
+
+<img src="docs/img/demo-split.gif" alt="Ada writes a problem down without assigning it; Grace takes it; Ada finds out from the board" width="100%">
+
+Ada writes a problem down and says nothing about who should fix it. Grace looks
+at the board because she felt like it, decides to take it, and pulls. Ada looks
+again and the board tells her. Not a word was exchanged.
 
 A ticket nobody is working lives on its ref and nowhere else. Pulling it is
 what puts it on your disk, and that pull is a compare-and-swap, so exactly one
@@ -395,6 +435,12 @@ thing this rules out.
 | `pull` pushes first, writes the file second | The other order leaves the loser of a race holding a file that belongs to somebody else |
 | the ref's `assignee` gates the pull | The compare-and-swap only rules out two writes in the same instant; it cannot say "this is not yours", because a pull re-reads the ref right before writing |
 | `release` clears the ref, then removes the file | Without it an assignment is a reservation nobody can hand back |
+
+<img src="docs/img/demo-board.gif" alt="An open board on one machine grows a card when somebody files a ticket on another" width="100%">
+
+The board on the right is on another machine, opened with `jaira` and nobody
+touching it. A ticket filed on the left turns up as a card, with the line at the
+bottom saying which one became yours.
 
 A board with no remote behaves exactly as it always did: the file is the board.
 That branch is decided in one place, so no command has to know which mode it is
@@ -702,6 +748,33 @@ rejected mutable working-tree ticket files for exactly the merge-conflict reason
 above. jaira's bet is that a field-aware merge driver plus a deliberately small
 surface makes the plain-file approach work where those attempts did not. That bet
 is not yet proven by adoption.
+
+## The recordings
+
+The three GIFs above are recorded from scripts in `scripts/`, not captured by
+hand, so they can be re-shot when the behaviour changes instead of quietly
+describing an older version:
+
+```bash
+CGO_ENABLED=0 go build -o /tmp/jaira-static ./cmd/jaira
+vhs scripts/demo-split.tape        # the handover
+vhs scripts/demo-machines.tape     # two machines, one remote
+vhs scripts/demo-board.tape        # the board updating itself
+```
+
+Needs `vhs`, `ttyd`, `ffmpeg`, `tmux` and `docker`. **Use vhs v0.11.0**: v0.12.0
+runs the tape, prints "Creating …", exits 0 and writes no file at all
+([charmbracelet/vhs#787](https://github.com/charmbracelet/vhs/issues/787)).
+
+Both sides of every recording are containers with hostnames of their own, so
+"another machine" is something you can check on screen with `hostname` rather
+than a label. `scripts/demo-machines-start.sh` builds that: a bare repository
+plus two clones, each with its own branches, sharing nothing else. It runs tmux
+on a socket of its own — a recording must never be able to reach the panes
+somebody is working in.
+
+To see the same behaviour without recording anything, `scripts/try-everything.sh`
+walks seventeen checks through a sandbox and prints what to expect at each one.
 
 ## Development
 

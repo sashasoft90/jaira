@@ -1,12 +1,17 @@
-# Split screen: ADA on the left, GRACE on the right, in one recording.
+# Two people hand a ticket over without saying a word to each other.
 #
-#   go install github.com/charmbracelet/vhs@latest
-#   sudo apt install ttyd ffmpeg tmux
+#   CGO_ENABLED=0 go build -o /tmp/jaira-static ./cmd/jaira
 #   vhs scripts/demo-split.tape        → docs/img/demo-split.gif
+#
+# Needs docker, tmux, ttyd and ffmpeg. Recorded with vhs v0.11.0: v0.12.0 runs
+# the tape and writes no file at all (charmbracelet/vhs#787).
 #
 # vhs records exactly one terminal and cannot split by itself. The split
 # therefore happens inside the recording, with tmux: typing always goes to the
-# active pane, and "Ctrl+B" followed by "o" moves to the other side.
+# active pane, and Alt+o moves to the other side. Alt+o rather than tmux's own
+# prefix, because a prefix is two events with a timeout between them and a
+# recorder sending them back to back loses it — the letter then lands in the
+# shell instead.
 
 Output docs/img/demo-split.gif
 
@@ -19,47 +24,77 @@ Set Theme "Catppuccin Mocha"
 Set TypingSpeed 30ms
 
 Hide
-Type "go build -o /tmp/jaira ./cmd/jaira && bash scripts/demo-split-start.sh" Enter
-Sleep 8s
+Type "CGO_ENABLED=0 go build -o /tmp/jaira-static ./cmd/jaira && bash scripts/demo-machines-start.sh" Enter
+Sleep 18s
 Show
 Sleep 1s
 
-# ── ADA files a ticket for GRACE ──────────────────────────────────────
-Type "jaira create 'session cookie dropped on 302' --goal 'the cookie survives the OAuth round-trip' --context 'reported in chat: Safari logs people out mid-flow' --dod 'session survives the redirect' --assignee grace"
+# ── two machines, mid-work, sharing only a remote ────────────────────
+Type "# two machines, two clones, and the only thing they share is a remote"
+Enter
+Sleep 2s
+Type "git branch -a"
+Enter
+Sleep 3s
+
+Alt+o
+Sleep 800ms
+Type "# grace is on her own branches. fix/302 does not exist here"
+Enter
+Sleep 2s
+Type "git branch -a"
+Enter
+Sleep 3s
+Alt+o
+Sleep 800ms
+
+# ── ada writes down a problem. she does not say who should fix it ────
+Type "# ada writes down a problem. she does not say who should do it"
+Enter
+Sleep 2500ms
+
+Type "jaira create 'session cookie dropped on 302' --goal 'the cookie survives the OAuth round-trip' --context 'reported in chat: Safari logs people out mid-flow'  --dod 'session survives the redirect'"
 Sleep 500ms
 Enter
 Sleep 3s
 
+Type "# nobody owns it, and it is not even on her disk — it is on its ref"
+Enter
+Sleep 2s
 Type "ls .jaira/tickets/ | wc -l"
 Enter
-Sleep 2s
+Sleep 2500ms
 
-# ── over to GRACE ─────────────────────────────────────────────────────
-Ctrl+B
-Type "o"
-Sleep 1s
-
-Type "git branch -a | wc -l"
+# ── grace looks at the board of her own accord ───────────────────────
+Alt+o
+Sleep 800ms
+Type "# grace looks at the board. nobody asked her to"
 Enter
-Sleep 2s
-
+Sleep 2500ms
 Type "jaira fetch"
 Enter
 Sleep 3s
 
-Type "jaira pull $(jaira list --json | grep -o '\"id\": \"[^\"]*\"' | head -1 | cut -d'\"' -f4)"
+Type "# she decides to take it. pulling is a compare-and-swap: one clone wins"
+Enter
+Sleep 2500ms
+Type "jaira pull $(mine)"
+Enter
+Sleep 3500ms
+
+# ── ada finds out the same way she would find out anything ───────────
+Alt+o
+Sleep 800ms
+Type "# ada looks again"
+Enter
+Sleep 2s
+Type "jaira fetch"
 Enter
 Sleep 3s
+Type "jaira list"
+Enter
+Sleep 3500ms
 
-# ── back to ADA: the same ticket, and she does not get it ────────────
-Ctrl+B
-Type "o"
-Sleep 1s
-
-Type "jaira fetch --quiet && jaira pull $(jaira list --json | grep -o '\"id\": \"[^\"]*\"' | head -1 | cut -d'\"' -f4)"
+Type "# thanks, grace. not a word was exchanged — the board said it"
 Enter
 Sleep 4s
-
-Type "ls .jaira/tickets/ | wc -l"
-Enter
-Sleep 3s
