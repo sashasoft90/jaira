@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Zwei Panes nebeneinander, links ADA, rechts BERK, beide in einem eigenen Klon
-# desselben Boards — und haengt sich dran. Fuer die Aufnahme gedacht:
+# Two panes side by side — ADA on the left, BERK on the right, each in its own
+# clone of the same board — and attaches to them. Meant for recording:
 #
-#   scripts/demo-split-start.sh        # oder ueber scripts/demo-split.tape
+#   scripts/demo-split-start.sh        # or through scripts/demo-split.tape
 #
-# Warum tmux und nicht zwei Fenster: eine Aufnahme zeichnet genau ein Terminal
-# auf. Der geteilte Bildschirm muss deshalb INNERHALB dieses einen Terminals
-# entstehen, sonst ist die zweite Seite im Bild nicht zu sehen.
+# Why tmux rather than two windows: a recording captures exactly one terminal.
+# The split therefore has to happen INSIDE that one terminal, or the second
+# side is not in the picture at all.
 set -eu
 J=${J:-/tmp/jaira}
 S=${SESSION:-jdemo}
@@ -17,8 +17,8 @@ tmux new-session -d -s "$S" -c "$R/ada" "bash --norc"
 A=$(tmux list-panes -t "$S" -F '#{pane_id}' | head -1)
 B=$(tmux split-window -h -t "$A" -c "$R/berk" -P -F '#{pane_id}' "bash --norc")
 
-# Namen ueber den Panes: ohne sie ist auf der Aufnahme nicht zu sehen, wer wer
-# ist, und genau das ist die Aussage des ganzen Bildes.
+# Names above the panes: without them a viewer cannot tell who is who, and who
+# is who is the whole point of the picture.
 tmux set -t "$S" -g pane-border-status top
 tmux set -t "$S" -g pane-border-format ' #{pane_title} '
 tmux set -t "$S" -g status off

@@ -1,10 +1,10 @@
-# Запись демонстрации в GIF. Требует vhs + ttyd + ffmpeg:
+# Record the walkthrough as a GIF. Needs vhs + ttyd + ffmpeg:
 #   go install github.com/charmbracelet/vhs@latest
 #   sudo apt install ttyd ffmpeg
 #   vhs scripts/demo.tape        → docs/img/demo.gif
 #
-# Файл, а не запись рукой: когда поведение изменится, GIF
-# переснимается одной командой, а не заново отыгрывается.
+# A file rather than a session somebody played by hand: when the behaviour
+# changes, the GIF is re-shot with one command instead of re-performed.
 
 Output docs/img/demo.gif
 

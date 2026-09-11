@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Baut die Sandbox fuer die geteilte Vorfuehrung und druckt die zwei Pfade.
-# Wird in der versteckten Phase der Aufnahme aufgerufen, damit im Bild nur die
-# eigentlichen Kommandos stehen.
+# Builds the sandbox for the split-screen walkthrough and prints its path.
+# Called during the hidden phase of a recording, so the picture carries only
+# the commands that are the point.
 set -eu
 J=${J:-/tmp/jaira}
 R=$(mktemp -d)

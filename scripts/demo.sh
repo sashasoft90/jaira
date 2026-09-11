@@ -1,8 +1,9 @@
 #!/bin/bash
-# Демонстрация: как тикет переезжает от одного человека к другому через git-реф.
-# Рассчитана на запись: печатает команду, ждёт, показывает результат.
-#   bash scripts/demo.sh              — обычный темп
-#   SPEED=0 bash scripts/demo.sh      — без пауз (для проверки)
+# A walkthrough of how a ticket travels from one person to another on a git ref.
+# Written to be recorded: it prints the command, waits, then shows the result.
+#
+#   bash scripts/demo.sh              normal pace
+#   SPEED=0 bash scripts/demo.sh      no pauses, for checking it still works
 set -u
 J=${J:-/tmp/jaira}
 P=${SPEED:-1}
@@ -21,49 +22,49 @@ say()  { echo -e "\033[2m# $1\033[0m"; pause 0.8; }
 run()  { echo -e "\033[1;32m$\033[0m $2"; pause 0.5; ( cd $R/$1 && eval "$2" ); pause 1.2; }
 
 clear
-echo -e "\033[1mjaira: тикет едет к человеку по git-рефу, без общей ветки\033[0m"
+echo -e "\033[1mjaira: a ticket reaches a person over a git ref, with no shared branch\033[0m"
 pause 1.5
 
-who "ADA заводит задачу для BERK"
-say "ни сервера, ни аккаунтов — только git-remote, который и так есть"
-run ada "$J create 'почини куки на 302' --goal 'куки переживают OAuth' --context 'в Safari выкидывает из сессии' --dod 'сессия переживает редирект' --assignee berk"
+who "ADA files a ticket for BERK"
+say "no server and no accounts — only the git remote that is already there"
+run ada "$J create 'session cookie dropped on 302' --goal 'the cookie survives the OAuth round-trip' --context 'reported in chat: Safari logs people out mid-flow' --dod 'session survives the redirect' --assignee berk"
 ID=$(cd $R/ada && $J list --json | grep -o '"id": "[^"]*"' | head -1 | cut -d'"' -f4)
 H=${ID: -6}
 
-say "у ADA на диске файла НЕТ — тикет живёт на своём рефе"
+say "nothing on ADA's disk: the ticket lives on its own ref"
 run ada "ls .jaira/tickets/ | wc -l"
 run ada "git ls-remote origin 'refs/jaira/*'"
 
-who "BERK, другой человек, другой клон"
-say "ни одной ветки ADA у него нет"
+who "BERK — another person, another clone"
+say "he has none of ADA's branches"
 run berk "git branch -a | wc -l"
 run berk "$J list"
-say "один заход в remote — и задача у него на доске"
+say "one round trip to the remote, and the ticket is on his board"
 run berk "$J fetch"
 
-who "читать можно, писать — нет"
-run berk "$J note $H 'начну завтра'; echo exit=\$?"
-say "потому что это ещё не его: файла здесь нет"
+who "reading works, writing does not"
+run berk "$J note $H 'will start tomorrow'; echo exit=\$?"
+say "because it is not his yet — there is no file here"
 
-who "BERK забирает задачу"
+who "BERK takes the ticket"
 run berk "$J pull $H"
-say "compare-and-swap на рефе: выиграть может ровно один"
-run berk "$J note $H 'смотрю на редирект'"
+say "a compare-and-swap on the ref: exactly one clone can win"
+run berk "$J note $H 'looking at the redirect'"
 
-who "ADA пробует ту же задачу"
+who "ADA tries the same ticket"
 run ada "$J fetch --quiet >/dev/null; $J pull $H; echo exit=\$?"
 run ada "ls .jaira/tickets/ | wc -l"
-say "у проигравшего не появляется ничего — дублировать нечего"
+say "the loser gets nothing at all — there is no second copy to duplicate"
 
-who "BERK возвращает задачу на доску"
+who "BERK hands it back"
 run berk "$J release $H"
-say "и теперь её может взять кто угодно"
+say "and now anybody can take it"
 run ada "$J fetch --quiet >/dev/null; $J pull $H"
 
-who "доска целиком — в отдельной ветке, как файлы"
+who "the whole board, as files, on a branch of its own"
 run ada "$J snapshot"
 run ada "git ls-tree -r --name-only jaira/board"
 run ada "git log --oneline jaira/board"
 
-echo; echo -e "\033[1mвсё это — один git-remote. ни сервера, ни демона.\033[0m"
-echo -e "\033[2mпесочница: $R\033[0m"
+echo; echo -e "\033[1mall of it over one git remote. no server, no daemon.\033[0m"
+echo -e "\033[2msandbox: $R\033[0m"

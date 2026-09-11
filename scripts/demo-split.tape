@@ -1,12 +1,12 @@
-# Geteilter Bildschirm: links ADA, rechts BERK, in einer Aufnahme.
+# Split screen: ADA on the left, BERK on the right, in one recording.
 #
 #   go install github.com/charmbracelet/vhs@latest
 #   sudo apt install ttyd ffmpeg tmux
 #   vhs scripts/demo-split.tape        → docs/img/demo-split.gif
 #
-# vhs zeichnet genau ein Terminal auf und kann selbst nicht teilen. Die Teilung
-# entsteht deshalb innerhalb der Aufnahme, mit tmux — getippt wird immer ins
-# aktive Pane, und "Ctrl+B" gefolgt von "o" wechselt die Seite.
+# vhs records exactly one terminal and cannot split by itself. The split
+# therefore happens inside the recording, with tmux: typing always goes to the
+# active pane, and "Ctrl+B" followed by "o" moves to the other side.
 
 Output docs/img/demo-split.gif
 
@@ -24,8 +24,8 @@ Sleep 8s
 Show
 Sleep 1s
 
-# ── ADA legt ein Ticket fuer BERK an ─────────────────────────────────
-Type "jaira create 'почини куки на 302' --goal 'куки переживают OAuth' --context 'в Safari выкидывает из сессии' --dod 'сессия переживает редирект' --assignee berk"
+# ── ADA files a ticket for BERK ──────────────────────────────────────
+Type "jaira create 'session cookie dropped on 302' --goal 'the cookie survives the OAuth round-trip' --context 'reported in chat: Safari logs people out mid-flow' --dod 'session survives the redirect' --assignee berk"
 Sleep 500ms
 Enter
 Sleep 3s
@@ -34,7 +34,7 @@ Type "ls .jaira/tickets/ | wc -l"
 Enter
 Sleep 2s
 
-# ── zu BERK ──────────────────────────────────────────────────────────
+# ── over to BERK ─────────────────────────────────────────────────────
 Ctrl+B
 Type "o"
 Sleep 1s
@@ -51,7 +51,7 @@ Type "jaira pull $(jaira list --json | grep -o '\"id\": \"[^\"]*\"' | head -1 | 
 Enter
 Sleep 3s
 
-# ── zurueck zu ADA: dieselbe Karte, und sie bekommt sie nicht ────────
+# ── back to ADA: the same ticket, and she does not get it ────────────
 Ctrl+B
 Type "o"
 Sleep 1s
