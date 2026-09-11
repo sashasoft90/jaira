@@ -1,7 +1,7 @@
 ---
 id: 01M26J3M1RN445R66PM0RA7PFE
 title: "Ein Ref verschwindet erst, wenn das Ticket im Hauptbranch angekommen ist"
-status: review
+status: human
 ready: true
 creator: Alexander Sacharov
 goal: "Zwischen 'ins Logbuch gelegt' und 'im Hauptbranch angekommen' bleibt das Ticket fuer alle sichtbar, damit niemand dasselbe Problem ein zweites Mal aufschreibt"
@@ -24,15 +24,27 @@ blocked-by: []
 commits:
   - fe864ec705086aafcd4b16fab0556d9dd2c3ceb7
 created-at: 2026-09-10T21:03:18Z
-updated-at: 2026-09-11T06:35:03Z
+updated-at: 2026-09-11T11:32:08Z
 updated-by: Alexander Sacharov
-claimed-by: DESKTOP-RFTCH11-447398
-claimed-at: 2026-09-10T21:07:14Z
+claimed-by: DESKTOP-RFTCH11-158836
+claimed-at: 2026-09-11T11:29:31Z
 assignee: Alexander Sacharov
 question: "Der Ref lebt jetzt bis zum Landen. Eine Frage: die Frist, nach der ein 'fertig, aber nirgends angekommen' gemeldet wird, steht auf sieben Tagen - passt das zu euren Reviews, oder eher drei?"
-outcome-what: "logbook und archive schreiben den Endzustand aufs Ref statt es zu loeschen; das Jaeten haengt am Snapshot-Lauf und greift nur bei Tickets, die in einer Landebranch weggelegt sind; Landebranches als Liste in settings.json; Meldung fuer nie angekommene Tickets plus 'jaira snapshot --drop'"
-outcome-why: "Zwischen 'ins Logbuch gelegt' und 'gemergt' war das Ticket fuer alle anderen unsichtbar, weil das Ref schon weg war und die Datei nur im Branch der abraeumenden Person lag - wer dasselbe Problem bemerkt, schreibt es ein zweites Mal auf"
-outcome-resolves: "Jeder DoD-Punkt gegen echtes git belegt: nach archive lebt der Ref weiter, ein Snapshot ohne Landung laesst ihn stehen, nach dem Merge meldet der Lauf 'landed and cleared' und der Ref ist weg waehrend das Ticket im Snapshot-Branch liegt; der Hauptbranch kommt aus der Liste in settings.json, sonst aus origin/HEAD, und ohne beides wird nichts entfernt; fetch und validate melden ein nie angekommenes Ticket; 'jaira snapshot --drop' ist der ausdrueckliche Ausweg"
+outcome-what: "Провёл ревью diff'а против DoD: код собирается, юнит-тесты (core/snapshot, core/settings, core/refsync) проходят."
+outcome-why: "Найден вероятный функциональный дефект — жатва refs зависит от локальных remote-tracking веток landing-branches, которые jaira нигде не обновляет, что может сорвать обещание DoD 'sobald ein Commit gefunden wird'; плюс отсутствует явный fallback origin/main/origin/master и нет теста с двумя реальными клонами на полный сценарий жатвы."
+outcome-resolves: "review-summary, review-gaps, review-verdict, review-check записаны на тикете; решение об одобрении/возврате — за человеком."
+review-summary: "logbook/archive пишут финальное состояние на ref вместо удаления (RecordFiled вместо RecordDelete); удаление ref перенесено в snapshot-run (core/snapshot), который после записи снапшота вызывает Landed(id, landing-branches) через 'git rev-list -1 <branch> -- .jaira/logbook/*/<id>* .jaira/archive/<id>*' и чистит только те refs, чей тикет там найден; landing-branches берутся из settings.json ('landing-branches', список с глобами), а без них — из локально закэшированного origin/HEAD (core/gitref RemoteHead/SetRemoteHead); jaira fetch и jaira validate теперь печатают Stranded — тикеты, законченные здесь, но не приземлившиеся нигде дольше настраиваемого срока (landing-grace-days, по умолчанию 7 дней); добавлена явная команда 'jaira snapshot --drop <id>' для принудительного удаления ref без ожидания слияния."
+review-gaps: "1) Реальный дефект: Runner.Run() (core/snapshot/snapshot.go) никогда не обновляет локальные remote-tracking ветки для landing-branches (origin/main и т.п.) — он делает FetchBranch(snapshot-branch) и Repo.Fetch(), а последний тянет ТОЛЬКО refs/jaira/tickets/* (core/gitref/gitref.go:534-543, докстрока jaira fetch прямо говорит 'no branch'). Landed() же делает git rev-parse/rev-list по 'origin/main' и подобным — это локальные, потенциально устаревшие или вовсе отсутствующие refs, если пользователь никогда не гонял голый git fetch. В расписании фонового запуска (раз в 3 дня) это означает, что тикет может НЕ вычиститься 'sobald' commit появился в основной ветке, а просядёт до следующего случайного git fetch/pull кем-то — противоречит DoD 'wird entfernt, sobald ... einen Commit findet'. Нет теста, который бы поймал это (все тесты снапшота работают против одного bare-remote+clone, где origin/main создаётся и коммитится в ТОЙ ЖЕ рабочей копии, так что tracking-ref всегда свежий). 2) DoD дословно требует 'Hauptbranch aus origin/HEAD ... mit Fallback auf origin/main und origin/master und einem Eintrag in settings.json' — реализовано только settings.json-список ИЛИ origin/HEAD (core/settings/settings.go Landing()); нет отдельного жёстко закодированного фолбэка на origin/main/origin/master, если origin/HEAD не резолвится (что происходит, если удалённый git-сервер не отдаёт HEAD, или local clone его не знает и SetRemoteHead не сработал). 3) DoD просит 'Tests mit zwei Klonen', которые доказывают, что тикет остаётся видимым в окне и исчезает после мержа. core/refsync/refsync_test.go:TestAFinishedTicketThatNeverLandedIsReported использует twoSides, но реальное приземление/жатву через snapshot.Runner там не гоняют — ref удаляется вручную Repo.Delete, в обход кода в core/snapshot. core/snapshot/snapshot_test.go:TestOnlyATicketFiledAwayInALandingBranchIsReaped тестирует настоящую жатву, но только с одним клоном+bare remote, не с двумя параллельными клонами, доказывающими видимость тикета для 'другого' клона до мержа. Итог: механизм жатвы протестирован, а именно комбинация 'два клона + settings.json/origin-HEAD резолюция + устаревание tracking-веток' — нет."
+review-verdict: "Не полностью соответствует DoD. Основная механика (RecordFiled статт RecordDelete, Landed() по rev-list, жатва внутри snapshot-run, Stranded-репортинг в fetch/validate, --drop) реализована и покрыта тестами, сборка и тесты проходят. Но есть настоящий функциональный риск: жатва опирается на локальные remote-tracking ветки (origin/main и т.п.), которые сам jaira нигде не обновляет — это может задержать или вовсе не выполнить автоматическое удаление ref, что бьёт по центральному обещанию тикета ('sobald ein Commit gefunden wird'). Плюс отсутствует явный fallback origin/main/origin/master из текста DoD, и нет теста на двух реальных клонах для полного сценария жатвы. Отправляю в human, а не одобряю как готовое."
+review-check: |-
+  1. cd /home/alex/projects/jaira && go test ./core/snapshot/... ./core/settings/... ./core/refsync/... — все три пакета должны показать 'ok'.
+  2. mkdir /tmp/jr && cd /tmp/jr && git init --bare board.git && git clone board.git ada && git clone board.git bob
+  3. В ada: git checkout -b main && echo x > f && git add f && git commit -m init && git push origin main
+  4. В ada: настроить JAIRA_HOME на отдельную папку, jaira init, создать тикет, jaira claim/jaira move в конечную лейну, затем jaira archive <id> (или соответствующий финальный шаг) — тикет уходит в .jaira/archive/, закоммитить и запушить в main
+  5. В ada: JAIRA_NO_SNAPSHOT=1 jaira snapshot --json — посмотреть поле reaped: если main НЕ был заранее подтянут через обычный 'git fetch origin main' в этом клоне (а не через jaira), проверить, останется ли ref всё ещё удалён — если да несмотря на отсутствие свежего fetch, баг из review-gaps №1 не подтверждается; если ref НЕ удаляется, пока не выполнить руками 'git fetch origin main', баг подтверждён.
+  6. В bob (второй клон, до слияния в main): jaira fetch --json — тикет должен быть виден среди refs (still standing).
+  7. После шага 5 (реальный merge+snapshot): bob снова jaira fetch --json — ref должен исчезнуть у bob тоже.
+  Если шаг 5 показывает, что чистка происходит только после ручного git fetch origin main, это подтверждает главный найденный дефект.
 ---
 
 # Ein Ref verschwindet erst, wenn das Ticket im Hauptbranch angekommen ist
@@ -106,3 +118,4 @@ Ablauf jetzt, gegen echtes git belegt: nach 'archive' lebt der Ref weiter (die D
 
 Der Preis, den dieses Ticket einfuehrt, ist benannt und sichtbar gemacht statt verschwiegen: ein Branch, der nie gemergt wird, haelt seinen Ref. fetch und validate melden 'fertig seit N Tagen und nirgends angekommen', und 'jaira snapshot --drop' ist der ausdrueckliche Ausweg.
 - **2026-09-11 06:29 · Alexander Sacharov** — Antwort (Alexander): die Frist ist drei Tage, nicht sieben. Sein Argument ist das richtige - Reviews laufen hier schneller, und eine Woche ist lang genug, dass ein vergessener Branch keine Nachricht mehr ist, wenn endlich jemand davon erfaehrt. Default geaendert, 'landing-grace-days' in settings.json bleibt der Weg, es anders zu setzen.
+- **2026-09-11 11:32 · Alexander Sacharov** — Ревью: главная находка — Runner.Run (core/snapshot/snapshot.go) не тянет landing-branches (main/master) с origin, полагается на то, что уже локально закэшировано; Repo.Fetch() тянет только refs/jaira/tickets/*. Это может задержать/сорвать автожатву refs. Возврат в in-progress должен решить: либо явный git fetch landing-веток перед Landed(), либо документированное ограничение с более коротким по умолчанию окном проверки.
