@@ -13,7 +13,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T20:08:36Z
-updated-at: 2026-09-11T20:09:49Z
+updated-at: 2026-09-11T20:09:52Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-1258931
 claimed-at: 2026-09-11T20:08:53Z
@@ -23,7 +23,7 @@ claimed-at: 2026-09-11T20:08:53Z
 
 ## Definition of Done
 
-- [ ] Die ausgewaehlte Karte mit farbigem Tag ist in dessen Ton gefuellt; c schaltet auf neutral und zurueck; die Fusszeile nennt was der naechste Druck tut; auf einem 24-Bit-Terminal wird 15% gemischt, sonst 45%; keine Tag-Farbe landet auf einem Grau; eine Karte ohne farbiges Tag bleibt neutral gefuellt; go test ./... -race gruen
+- [x] Die ausgewaehlte Karte mit farbigem Tag ist in dessen Ton gefuellt; c schaltet auf neutral und zurueck; die Fusszeile nennt was der naechste Druck tut; auf einem 24-Bit-Terminal wird 15% gemischt, sonst 45%; keine Tag-Farbe landet auf einem Grau; eine Karte ohne farbiges Tag bleibt neutral gefuellt; go test ./... -race gruen
 
 ## Options
 
