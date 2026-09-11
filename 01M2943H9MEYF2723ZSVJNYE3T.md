@@ -20,7 +20,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T20:56:18Z
-updated-at: 2026-09-11T21:01:02Z
+updated-at: 2026-09-11T21:01:10Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-1358160
 claimed-at: 2026-09-11T20:56:31Z
@@ -29,6 +29,7 @@ outcome-why: "Tests that opened a store without setting JAIRA_HOME wrote session
 outcome-resolves: "A per-package scan that counts ~/.jaira/state before and after each package now reports no growth anywhere; go test ./... green; ~/.jaira/state is down from 3173 directories and 38 MB to 23 and 636 KB, and the 23 are existing checkouts."
 review-summary: "One TestMain replaces a rule nobody could keep: 10 of the 26 test files in internal/cli set JAIRA_HOME and 16 did not, so forgetting was the default and the damage landed in the developer's home rather than in the test. Nothing outside test code changes, so there is nothing here for a user to notice and no NOTES.md line. The leak was measured per package rather than guessed - internal/cli was the only one."
 review-gaps: "Nothing stops a future package from leaking the same way; the guard is per package, not global. A stricter version would make the store refuse the real home when it can see it is running under a test binary, as core/bgrun already does for spawning - not done here, because it hides the mistake instead of showing it. The sweep script lives in the scratchpad and is not in the repo: with the leak fixed there is nothing left to sweep periodically."
+review-verdict: "Ready. Test-only change, measured before and after, no production code touched."
 ---
 
 # Tests write their state into the real ~/.jaira
