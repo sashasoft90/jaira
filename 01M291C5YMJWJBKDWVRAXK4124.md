@@ -13,7 +13,7 @@ tags:
 blocked-by: []
 commits: []
 created-at: 2026-09-11T20:08:36Z
-updated-at: 2026-09-11T20:08:57Z
+updated-at: 2026-09-11T20:09:49Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-1258931
 claimed-at: 2026-09-11T20:08:53Z
@@ -35,4 +35,4 @@ claimed-at: 2026-09-11T20:08:53Z
 <Steps, in order — filled in by the pre-process step, or by you.>
 
 ## Progress
-
+- **2026-09-11 20:09 · Alexander Sacharov** — Die Messung, auf der die zwei Mischwerte beruhen, steht im Context und ist der eigentliche Inhalt des Tickets - ohne sie sieht 15% wie eine Geschmacksfrage aus und jemand stellt es spaeter 'leiser', womit die Tag-Farbe auf jedem Palette-Terminal still verschwindet. Das Skript, das die Tabelle erzeugt hat, lag unter scratchpad/whichtints und ist nicht eingecheckt; die Rechnung steht jetzt als Test da (TestGlowKeepsItsColourOnAPaletteTerminal), was der bessere Ort ist.
