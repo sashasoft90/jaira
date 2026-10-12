@@ -1,7 +1,7 @@
 ---
 id: 01M4RNA6A0Z1S2HCKT6K776466
 title: Ein Release testet einmal statt viermal
-status: critique
+status: done
 ready: true
 creator: Alexander Sacharov
 assignee: Alexander Sacharov
@@ -20,15 +20,21 @@ blocked-by: []
 related:
   - 01M4RCGVBXRPSJ3GA8P25HDAJZ
   - 01M4QECQMKHK5BKWRZMFAR97K9
-commits: []
+commits:
+  - c674f9263a515b6a390c1af547587a9f1f11e589
 created-at: 2026-10-12T18:17:03Z
-updated-at: 2026-10-12T18:19:43Z
+updated-at: 2026-10-12T19:08:51Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-68064
 claimed-at: 2026-10-12T18:17:28Z
 outcome-what: "ci.yaml ueberspringt Pushes/PRs, die nur core/release/notes/** aendern; goreleaser-Hook und release.yaml testen nicht mehr; Kommentare, CLAUDE.md und AGENTS.md nennen den Release-Knopf als einzigen Test-Ort"
 outcome-why: "v0.3.7 lief die Suite viermal (Knopf, Release-PR 3 OS, Push nach master 3 OS, Tag-Build) auf demselben Baum"
 outcome-resolves: "DoD 1-4: Release testet einmal, im Knopf; master hat keinen Pflicht-Check, der Release-PR bleibt mergebar"
+review-summary: "ci.yaml bekommt paths-ignore core/release/notes/** auf push und pull_request: Release-PR und sein Merge-Push nach master starten keine Tests mehr, jede andere Aenderung laeuft unveraendert auf 3 OS. .goreleaser.yaml verliert 'go test ./...' (go mod tidy bleibt), release.yaml verliert den git-Identitaets-Schritt, der nur diesem Test diente. Kommentare in ci.yaml, release.yaml, .goreleaser.yaml, release-notes.yaml und core/release/notes_test.go sowie je ein Absatz in CLAUDE.md und AGENTS.md nennen den Release-Knopf ('Test the cut tree') als einzigen Test-Ort. Branch-Protection als Note: master ohne Pflicht-Check, also blockiert ein uebersprungener Lauf keinen Merge."
+review-gaps: "1) 'the button has already tested that exact tree' (ci.yaml-Kommentar, CLAUDE.md/AGENTS.md) stimmt nur, wenn master zwischen Knopf und Merge stillsteht. Wird dazwischen ein anderer PR gemergt, ist der Merge-Commit = getesteter Baum + neue Commits; der Merge-Push aendert gegenueber master nur notes/** und wird uebersprungen, der Tag-Build testet nicht mehr -> diese Kombination ist ungetestet. Risiko klein (jeder Zwischen-Commit hatte seinen eigenen CI-Lauf, TestNotesUnchangedByMovingUnreleasedIntoFiles toleriert neue Notes), aber die Behauptung ist zu stark; Abhilfe waere ein Satz 'Knopf erst druecken, wenn nichts mehr zu mergen ist' oder den Knopf neu laufen lassen. 2) Ein PR, der nur eine Note-Datei aendert, laeuft jetzt ohne CI; ein kaputtes Notes-Format faellt erst beim naechsten Knopf auf (vor dem Release, also gefangen). Workflows selbst nicht ausgefuehrt: nur YAML geparst und go test ./core/release gruen."
+test-verdict: "pass: go vet + go test ./... green (exit 0); all workflow YAMLs and .goreleaser.yaml parse; merge of #61 (e486d04 vs ^1) changes only core/release/notes/** so ci.yaml paths-ignore skips it on push and pull_request; Actions themselves not run locally"
+review-verdict: "Der Diff erfuellt DoD 1-4; keine Defekte gefunden. Vorbehalt: die Aussage 'derselbe Baum' haelt nur, wenn master zwischen Knopf und Merge des Release-PR nicht weiterlaeuft (gaps 1) - entscheiden, ob ein Satz dazu in CLAUDE.md/AGENTS.md reicht. Ob CI wirklich springt, zeigt erst der naechste echte Release."
+review-check: "1. git show c674f92 -- .github/workflows/ci.yaml  -> unter push und pull_request steht paths-ignore: [\"core/release/notes/**\"], die Matrix ubuntu/macos/windows ist unveraendert  2. grep -n 'go test' .goreleaser.yaml .github/workflows/release.yaml  -> keine Treffer  3. grep -n 'go test' .github/workflows/release-notes.yaml  -> genau eine Zeile, Schritt 'Test the cut tree'  4. Beim naechsten Release: Actions-Tab -> release-notes mit X.Y.Z starten -> Lauf zeigt 'Test the cut tree' gruen  5. Im geoeffneten Release-PR: Checks-Tab zeigt keinen 'ci'-Lauf, der Merge-Button ist aktiv  6. Nach dem Merge: Actions-Tab zeigt fuer den master-Push keinen 'ci'-Lauf, 'release' baut ohne Test-Schritt und veroeffentlicht die Binaries"
 ---
 
 # Ein Release testet einmal statt viermal
@@ -58,3 +64,5 @@ outcome-resolves: "DoD 1-4: Release testet einmal, im Knopf; master hat keinen P
 - **2026-10-12 18:18 · Alexander Sacharov** — Branch-Protection gelesen (2026-10-12): gh api repos/BeMuCa/jaira/branches/master -> protected:false, required_status_checks leer; repos/BeMuCa/jaira/rulesets -> []; protection-Endpoint 404 (kein admin, aber branches/master liefert protected:false). Kein Pflicht-Check -> paths-ignore genuegt, ein uebersprungener ci-Workflow blockiert den Release-PR nicht. Faellt spaeter ein Pflicht-Check 'test (...)' dazu, braucht es statt paths-ignore einen sofort-gruenen Job.
 - **2026-10-12 18:18 · Alexander Sacharov** — Offene Entscheidungen: keine. Alex hat die Richtung im Kontext entschieden; paths-ignore vs. sofort-gruener Job entscheidet die Branch-Protection (keine) -> paths-ignore. Kein Release-Notes-Eintrag: nur CI, fuer Nutzer des Binaries unsichtbar.
 - **2026-10-12 18:19 · Alexander Sacharov** — paths-ignore statt Job-mit-Pfadfilter: master hat keinen Pflicht-Check (siehe Note). Auch ticket-commits faellt fuer reine Notes-Diffs weg — der Release-PR traegt keine Ticket-Datei, nichts zu pruefen. release.yaml: 'Configure git for fixture repositories' entfernt, es existierte nur fuer den Test im goreleaser-Hook; go mod tidy und der Changelog brauchen keine git-Identitaet. Kommentar in core/release/notes_test.go nannte goreleasers go test, auf den Knopf umgestellt.
+- **2026-10-12 18:22 · Alexander Sacharov** — Review (frische Sicht): DoD erfuellt, Vorbehalt in review-gaps 1 - 'derselbe Baum' gilt nur, wenn master zwischen Knopf und Merge stillsteht; sonst baut der Tag einen ungetesteten Merge-Commit. Klein, aber vor signoff entscheiden, ob ein Satz in CLAUDE.md/AGENTS.md dazu soll.
+- **2026-10-12 18:37 · Alexander Sacharov** — explain: Der Review fand keinen Fehler, alle vier DoD-Punkte sind erfuellt. Ein Vorbehalt: Doku und ci.yaml behaupten, der Release-Knopf habe genau den Baum getestet, der spaeter getaggt wird. Das stimmt nur, wenn zwischen Knopf und Merge des Release-PR nichts anderes nach master gemergt wird - sonst baut der Tag einen Merge-Commit, den als Ganzes niemand getestet hat, weil Merge-Push (nur notes/**) und Tag-Build nicht mehr testen. Das Risiko ist klein, denn jeder Zwischen-PR hatte seinen eigenen CI-Lauf. Optionen: (a) so annehmen, (b) einen Satz in CLAUDE.md/AGENTS.md ergaenzen: 'Knopf erst druecken, wenn nichts mehr zu mergen ist, sonst Knopf neu laufen lassen', (c) technisch absichern, z.B. Release-PR testen, wenn master seit dem Knopf weitergelaufen ist. Der Reviewer empfiehlt (b): nur den Satz ergaenzen. Zweiter, kleiner Punkt: reine Notes-PRs laufen ohne CI; ein kaputtes Notes-Format faellt erst beim naechsten Knopf auf, also noch vor dem Release. Ob der CI-Sprung wirklich greift, zeigt erst der naechste echte Release.
