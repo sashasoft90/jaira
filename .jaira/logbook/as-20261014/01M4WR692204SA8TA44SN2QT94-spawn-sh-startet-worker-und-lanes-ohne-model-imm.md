@@ -1,7 +1,7 @@
 ---
 id: 01M4WR692204SA8TA44SN2QT94
 title: "spawn.sh startet Worker und Lanes ohne --model: immer Opus statt der Stufe der Lane"
-status: critique
+status: done
 ready: true
 creator: Alexander Sacharov
 assignee: Alexander Sacharov
@@ -18,18 +18,26 @@ tags:
   - cli
 blocked-by: []
 related: []
-commits: []
+commits:
+  - 9b302c4cff74dd7d699a5ffd933990070549d0f0
+  - 932e8ec1d18f25b567084223e92add6a1456ede7
+  - 4481881898820733aa10accbc8536c2ceb292bf8
 created-at: 2026-10-14T08:24:18Z
-updated-at: 2026-10-14T13:12:36Z
+updated-at: 2026-10-14T14:22:03Z
 updated-by: Alexander Sacharov
-claimed-by: DESKTOP-RFTCH11-82143
-claimed-at: 2026-10-14T08:46:11Z
+claimed-by: DESKTOP-RFTCH11-78599
+claimed-at: 2026-10-14T13:20:18Z
 mode: ""
 outcome-what: "spawn.sh starts every tab on a model: a lane on the model its model-tier maps to in .jaira/models or settings.json \"models\", a worker/dispatch tab on the \"worker\" entry or strong's model, nothing mapped -> plain claude. jaira roles list --json carries lane_models and worker_model."
 outcome-why: "Every worker, review and lane tab ran on the account default (Opus) although the lanes already declare a tier; spawn.sh passed --model only to explain/discuss."
 outcome-resolves: "N2QT94: Alex picks Sonnet everywhere, yet all spawned tabs ran on Opus"
-review-summary: "docs/AGENTS.md:264 still says jaira 'does not know what those names mean on your setup' and that --for-lane 'is the only place model choice appears' — both false now that 'jaira roles list' resolves lane_models from .jaira/models; reword the opening paragraph so it says jaira passes the tier through and, when a map is set, also resolves it for the driver"
+review-summary: "Tabs started by spawn.sh now get --model from a tier->model map. settings.go adds Settings.Models (\"models\" in ~/.jaira/settings.json) and the board file .jaira/models ('cheap = sonnet', one line per key); ModelFor reads the board first, then the machine, key by key, and drops values that are no model name. The key 'worker' is the model of worker/dispatch tabs and falls back to the model of strong. 'jaira roles list --json' resolves this per lane into lane_models {lane: model} plus worker_model/worker_model_source, and the text output gains a 'worker model:' line. spawn.sh makes one 'roles list --json' call for every tab, picks chat_model (explain/discuss), worker_model (worker/dispatch), nothing (pr) or lane_models.<lane>, filters it through the existing model-name regex and passes it on all three start paths (wsl, Windows bare, unix). Nothing mapped, or an older jaira: plain claude as before. Tests in core/settings and core/role (incl. wsl + git bash against the real built jaira with its own JAIRA_HOME), docs/AGENTS.md section, release note N2QT94.md."
 round: 2
+review-gaps: "none blocking. Worth knowing for signoff: (1) a jaira-worker tab runs every lane of its ticket inside one session, so there cheap lanes run on the worker model (strong by default); the per-tier model only applies to lanes the dispatcher starts as their own tab. To get Sonnet everywhere set worker (or strong) to sonnet. (2) The settings screen in the TUI does not show or edit the map — out of scope by the 08:47 note. (3) The text output of 'jaira roles list' shows the worker model only, the per-lane models only in --json."
+test-verdict: "pass: go build + go vet + go test ./... -race with cleared cache green (RC=0); DoD 1-6 verified in the tree (proof tests run in the suite, docs/AGENTS.md and core/release/notes/N2QT94.md present); on a scratch board (jaira init, JAIRA_HOME) roles list resolved board strong=claude-opus-5-5 over machine opus and machine cheap=sonnet, and spawn.sh with a stub herdr ran worker/review -> claude --model 'claude-opus-5-5', in-progress -> --model 'sonnet', explain -> plain claude, and with nothing set worker -> plain claude"
+review-verdict: "the diff matches all six DoD items; no defects found. go test ./core/settings ./core/role ./internal/cli passes; a built binary with {\"models\":{\"cheap\":\"sonnet\",\"strong\":\"opus\"}} yields lane_models in-progress/testing=sonnet, the rest opus, worker_model=opus. run-lane.sh goes through spawn.sh, so it is covered too."
+review-round: 2
+review-check: "1. In this worktree: go build -o /tmp/jaira ./cmd/jaira  2. mkdir -p /tmp/jh && echo '{\"models\":{\"cheap\":\"sonnet\",\"strong\":\"opus\"}}' > /tmp/jh/settings.json  3. JAIRA_HOME=/tmp/jh /tmp/jaira roles list --json | jq '{lane_models,worker_model}' — see in-progress and testing = sonnet, the other lanes opus, worker_model = opus  4. echo 'worker = sonnet' > .jaira/models, run step 3 again — worker_model is now sonnet (the board wins); then rm .jaira/models  5. JAIRA_HOME=/tmp/jh /tmp/jaira roles list | tail -3 — a line 'worker model: opus — ...'  6. go test ./core/role -run 'TestSpawn' — passes; that is where spawn.sh is checked to type 'claude --model ...' for review/in-progress/worker and plain 'claude' with no map. A real tab: start a lane via spawn.sh under Herdr and look at the command line of the new tab."
 ---
 
 # spawn.sh startet Worker und Lanes ohne --model: immer Opus statt der Stufe der Lane
@@ -76,3 +84,5 @@ round: 2
 - **2026-10-14 12:24 · Alexander Sacharov** — critique beside the work (jaira-n2qt94-ab): no findings on settings.go, roles.go, spawn.sh, role_test.go; docs and release note not yet read. Its tab is closed; the critique lane after in-progress reads DoD 5/6.
 - **2026-10-14 13:09 · Alexander Sacharov** — decision (Alex via jaira-34): conversational mode cleared; work autonomously from here, commit finished DoD items, carry through all lanes up to signoff.
 - **2026-10-14 13:12 · Alexander Sacharov** — critique pass 1: code let stand on the beside-critique's note (settings.go, roles.go, spawn.sh, role_test.go). worker_model_source in --json has no reader but mirrors chat_model_source/python_source - left. One finding: docs/AGENTS.md:264 opening paragraph contradicts the new section (jaira now resolves tiers via roles list); reword it.
+- **2026-10-14 13:12 · Alexander Sacharov** — critique pass 2: the one finding (docs/AGENTS.md opening paragraph) is answered by 44818818; nothing else reopened. none.
+- **2026-10-14 13:17 · Alexander Sacharov** — testing: pass (see test-verdict). Moved to review; fresh agent started via run-lane.sh --no-worktree in a Herdr tab.
