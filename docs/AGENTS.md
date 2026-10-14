@@ -261,13 +261,14 @@ twice. For any other agent, `--into <dir>` names its skills directory.
 
 ## A note on model tiers
 
-A lane can declare `model-tier: cheap` or `strong`. jaira does not run models and
-does not know what those names mean on your setup — it passes the tier through in
-`--for-lane` output, and the thing driving the agent decides what to launch. That
-is the only place model choice appears.
+A lane can declare `model-tier: cheap` or `strong`. jaira does not run models:
+it passes the tier through in `--for-lane` output, and the thing driving the
+agent decides what to launch. A lane file never names a model, so a shared lane
+survives a model rename.
 
-The shipped driver, `spawn.sh`, decides it from a map you set, tier to model, as
-`claude --model` takes it:
+What a tier means on your setup is a map you set, tier to model, as
+`claude --model` takes it. jaira only resolves it for a driver to read; the
+shipped one, `spawn.sh`, starts each tab on it:
 
 ```jsonc
 // ~/.jaira/settings.json — this machine

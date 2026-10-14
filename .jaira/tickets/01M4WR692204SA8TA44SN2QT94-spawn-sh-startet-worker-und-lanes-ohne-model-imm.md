@@ -20,7 +20,7 @@ blocked-by: []
 related: []
 commits: []
 created-at: 2026-10-14T08:24:18Z
-updated-at: 2026-10-14T13:11:48Z
+updated-at: 2026-10-14T13:12:36Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-82143
 claimed-at: 2026-10-14T08:46:11Z
@@ -28,6 +28,8 @@ mode: ""
 outcome-what: "spawn.sh starts every tab on a model: a lane on the model its model-tier maps to in .jaira/models or settings.json \"models\", a worker/dispatch tab on the \"worker\" entry or strong's model, nothing mapped -> plain claude. jaira roles list --json carries lane_models and worker_model."
 outcome-why: "Every worker, review and lane tab ran on the account default (Opus) although the lanes already declare a tier; spawn.sh passed --model only to explain/discuss."
 outcome-resolves: "N2QT94: Alex picks Sonnet everywhere, yet all spawned tabs ran on Opus"
+review-summary: "docs/AGENTS.md:264 still says jaira 'does not know what those names mean on your setup' and that --for-lane 'is the only place model choice appears' — both false now that 'jaira roles list' resolves lane_models from .jaira/models; reword the opening paragraph so it says jaira passes the tier through and, when a map is set, also resolves it for the driver"
+round: 2
 ---
 
 # spawn.sh startet Worker und Lanes ohne --model: immer Opus statt der Stufe der Lane
@@ -73,3 +75,4 @@ outcome-resolves: "N2QT94: Alex picks Sonnet everywhere, yet all spawned tabs ra
 - **2026-10-14 11:36 · Alexander Sacharov** — pause: DoD 2-4 done (roles list --json lane_models/worker_model; spawn.sh one $model for every tab; tests in core/role incl. wsl + git bash via real jaira with JAIRA_HOME). The platform test now sets JAIRA_HOME: before, it ran the real jaira against the machine's own ~/.jaira/settings.json, so a 'models' entry there would have changed its expected command line. Waiting for Alex's ok on the diff; next docs/AGENTS.md + release note.
 - **2026-10-14 12:24 · Alexander Sacharov** — critique beside the work (jaira-n2qt94-ab): no findings on settings.go, roles.go, spawn.sh, role_test.go; docs and release note not yet read. Its tab is closed; the critique lane after in-progress reads DoD 5/6.
 - **2026-10-14 13:09 · Alexander Sacharov** — decision (Alex via jaira-34): conversational mode cleared; work autonomously from here, commit finished DoD items, carry through all lanes up to signoff.
+- **2026-10-14 13:12 · Alexander Sacharov** — critique pass 1: code let stand on the beside-critique's note (settings.go, roles.go, spawn.sh, role_test.go). worker_model_source in --json has no reader but mirrors chat_model_source/python_source - left. One finding: docs/AGENTS.md:264 opening paragraph contradicts the new section (jaira now resolves tiers via roles list); reword it.
