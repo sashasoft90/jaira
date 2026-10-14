@@ -266,6 +266,30 @@ does not know what those names mean on your setup — it passes the tier through
 `--for-lane` output, and the thing driving the agent decides what to launch. That
 is the only place model choice appears.
 
+The shipped driver, `spawn.sh`, decides it from a map you set, tier to model, as
+`claude --model` takes it:
+
+```jsonc
+// ~/.jaira/settings.json — this machine
+{ "models": { "cheap": "sonnet", "strong": "opus", "mini": "haiku", "worker": "sonnet" } }
+```
+
+```
+# .jaira/models — this board, committed, shared with the team
+cheap = sonnet
+mini = haiku
+```
+
+A tier is any alias a lane file declares, so a lane with `model-tier: mini`
+needs nothing but its line. The board file wins over the machine, key by key.
+`worker` is no tier: it is the model of a tab that carries a whole ticket —
+`jaira-worker` or `jaira-dispatcher` — and without it such a tab starts on the
+model of `strong`. A tier nothing maps starts `claude` without `--model`, the
+account's default, which is also what every tab does when neither is set.
+`jaira roles list` shows the result: `lane_models` and `worker_model` in
+`--json`. The cockpit's explain and discuss chats keep their own setting,
+`chat-model`.
+
 ## A note on the conversational mode
 
 A ticket can carry `mode: conversational` in its frontmatter. jaira does not act

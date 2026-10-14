@@ -1,7 +1,7 @@
 ---
 id: 01M4WR692204SA8TA44SN2QT94
 title: "spawn.sh startet Worker und Lanes ohne --model: immer Opus statt der Stufe der Lane"
-status: in-progress
+status: critique
 ready: true
 creator: Alexander Sacharov
 assignee: Alexander Sacharov
@@ -20,11 +20,14 @@ blocked-by: []
 related: []
 commits: []
 created-at: 2026-10-14T08:24:18Z
-updated-at: 2026-10-14T13:09:52Z
+updated-at: 2026-10-14T13:11:48Z
 updated-by: Alexander Sacharov
 claimed-by: DESKTOP-RFTCH11-82143
 claimed-at: 2026-10-14T08:46:11Z
 mode: ""
+outcome-what: "spawn.sh starts every tab on a model: a lane on the model its model-tier maps to in .jaira/models or settings.json \"models\", a worker/dispatch tab on the \"worker\" entry or strong's model, nothing mapped -> plain claude. jaira roles list --json carries lane_models and worker_model."
+outcome-why: "Every worker, review and lane tab ran on the account default (Opus) although the lanes already declare a tier; spawn.sh passed --model only to explain/discuss."
+outcome-resolves: "N2QT94: Alex picks Sonnet everywhere, yet all spawned tabs ran on Opus"
 ---
 
 # spawn.sh startet Worker und Lanes ohne --model: immer Opus statt der Stufe der Lane
@@ -39,8 +42,10 @@ mode: ""
   proof: core/settings/settings.go ModelFor: key worker, else the model of strong; spawn.sh worker|dispatch -> worker_model; TestModelForReadsTheBoardThenTheMachine, TestSpawnChatsStartOnTheChatModelWithTheirBrief
 - [x] Ohne jede Einstellung startet spawn.sh wie heute ohne --model
   proof: spawn.sh: no model -> claude without --model; TestSpawnChatsStartOnTheChatModelWithTheirBrief cases {} and empty roles
-- [ ] Test in core/role für Stufe -> --model, und docs/AGENTS.md beschreibt die Einstellung
-- [ ] Release-Note core/release/notes/<ID>.md
+- [x] Test in core/role für Stufe -> --model, und docs/AGENTS.md beschreibt die Einstellung
+  proof: TestSpawnChatsStartOnTheChatModelWithTheirBrief + TestSpawnStartsClaudeWhereItsShellRuns in core/role/role_test.go; docs/AGENTS.md 'A note on model tiers'
+- [x] Release-Note core/release/notes/<ID>.md
+  proof: core/release/notes/N2QT94.md
 
 ## Options
 
@@ -55,7 +60,7 @@ mode: ""
 - [x] roles list --json: lane_models {lane: model} for every lane whose tier maps, worker_model + source; text line too
 - [x] spawn.sh: model from lane_models.<lane> or worker_model for worker/dispatch; explain/discuss keep chat_model; one $model for wsl/windows/unix
 - [x] test in core/role/role_test.go: tier -> --model, worker -> strong, nothing -> plain claude
-- [ ] docs/AGENTS.md model-tier note + spawn.sh usage; release note core/release/notes/N2QT94.md
+- [x] docs/AGENTS.md model-tier note + spawn.sh usage; release note core/release/notes/N2QT94.md
 
 ## Progress
 - **2026-10-14 08:46 · Alexander Sacharov** — parent session: jaira-34
