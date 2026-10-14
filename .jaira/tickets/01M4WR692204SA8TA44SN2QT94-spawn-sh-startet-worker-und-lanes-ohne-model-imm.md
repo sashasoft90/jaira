@@ -1,0 +1,70 @@
+---
+id: 01M4WR692204SA8TA44SN2QT94
+title: "spawn.sh startet Worker und Lanes ohne --model: immer Opus statt der Stufe der Lane"
+status: in-progress
+ready: true
+creator: Alexander Sacharov
+assignee: Alexander Sacharov
+goal: "spawn.sh startet jede Lane und jeden Worker mit dem Modell, das zur model-tier der Lane passt (cheap/strong), einstellbar pro Maschine und pro Board. Ohne Einstellung bleibt es wie heute."
+context: |-
+  Was falsch ist: Alex wählt überall Sonnet, trotzdem laufen alle Worker-, Review- und Lane-Tabs auf Opus.
+  Ursache: core/role/builtin/jaira-dispatcher/scripts/spawn.sh startet sie mit nacktem 'claude' (Zeile ~180/199), ohne --model. Damit gilt der Account-Standard, hier Opus.
+  Nur explain/discuss bekommen ein Modell: chat_model aus .jaira/chat-model oder 'chat-model' in ~/.jaira/settings.json.
+  Die Lanes haben schon eine Stufe: model-tier cheap|strong, sichtbar als model_tier in 'jaira show <id> --for-lane <lane> --json'. docs/AGENTS.md ('A note on model tiers') sagt: jaira reicht die Stufe nur durch, der Starter entscheidet. spawn.sh tut das bisher nicht.
+  Offen: welche Lane ein Worker-Tab ('worker'/'dispatch') bekommt, der mehrere Lanes trägt - seine Stufe ist nicht eine Lane. Vorschlag: eigene Einstellung für worker/dispatch, Standard = strong.
+  Nebenbefund 14.10.: .jaira/chat-model liegt im Haupt-Checkout unversioniert und fehlt daher in jedem Worktree; Alex hat als Abhilfe chat-model=sonnet in ~/.jaira/settings.json gesetzt.
+definition-of-done: "Eine Zuordnung Stufe -> Modell ist einstellbar: pro Maschine in ~/.jaira/settings.json und pro Board in einer Datei unter .jaira/, wie chat-model"
+tags:
+  - cli
+blocked-by: []
+related: []
+commits: []
+created-at: 2026-10-14T08:24:18Z
+updated-at: 2026-10-14T13:09:52Z
+updated-by: Alexander Sacharov
+claimed-by: DESKTOP-RFTCH11-82143
+claimed-at: 2026-10-14T08:46:11Z
+mode: ""
+---
+
+# spawn.sh startet Worker und Lanes ohne --model: immer Opus statt der Stufe der Lane
+
+## Definition of Done
+
+- [x] Eine Zuordnung Stufe -> Modell ist einstellbar: pro Maschine in ~/.jaira/settings.json und pro Board in einer Datei unter .jaira/, wie chat-model
+  proof: core/settings/settings.go: Settings.Models + BoardModels(.jaira/models) + ModelFor; TestModelForReadsTheBoardThenTheMachine
+- [x] spawn.sh liest model_tier der Lane und startet claude mit --model <Modell> (WSL, natives Windows und Linux)
+  proof: core/role/builtin/jaira-dispatcher/scripts/spawn.sh: model from 'roles list --json' lane_models.<lane>, one $model for wsl/windows/unix; TestSpawnStartsClaudeWhereItsShellRuns (wsl + git bash, real jaira) and TestSpawnChatsStartOnTheChatModelWithTheirBrief (linux)
+- [x] Worker- und dispatch-Tabs haben eine eigene Einstellung; ohne sie gilt die Stufe strong
+  proof: core/settings/settings.go ModelFor: key worker, else the model of strong; spawn.sh worker|dispatch -> worker_model; TestModelForReadsTheBoardThenTheMachine, TestSpawnChatsStartOnTheChatModelWithTheirBrief
+- [x] Ohne jede Einstellung startet spawn.sh wie heute ohne --model
+  proof: spawn.sh: no model -> claude without --model; TestSpawnChatsStartOnTheChatModelWithTheirBrief cases {} and empty roles
+- [ ] Test in core/role für Stufe -> --model, und docs/AGENTS.md beschreibt die Einstellung
+- [ ] Release-Note core/release/notes/<ID>.md
+
+## Options
+
+- [ ] brainstorm
+- [ ] planning
+
+## Plan
+
+<Steps, in order — filled in by the pre-process step, or by you.>
+
+- [x] settings: Models map in settings.json, board file .jaira/models (key = model lines), ModelFor(root, key) board-first, worker falls back to strong; tests in core/settings
+- [x] roles list --json: lane_models {lane: model} for every lane whose tier maps, worker_model + source; text line too
+- [x] spawn.sh: model from lane_models.<lane> or worker_model for worker/dispatch; explain/discuss keep chat_model; one $model for wsl/windows/unix
+- [x] test in core/role/role_test.go: tier -> --model, worker -> strong, nothing -> plain claude
+- [ ] docs/AGENTS.md model-tier note + spawn.sh usage; release note core/release/notes/N2QT94.md
+
+## Progress
+- **2026-10-14 08:46 · Alexander Sacharov** — parent session: jaira-34
+- **2026-10-14 08:47 · Alexander Sacharov** — decided (worker, from the code): tiers are free-form aliases (core/lane/template.go), so the setting is a map tier -> model, not two fixed keys. Board entry wins over machine entry key by key, like chat-model. A lane without a tier, or a tier with no model mapped, gets no --model (account default). explain/discuss keep chat-model unchanged. The TUI settings screen is not touched (not in the DoD).
+- **2026-10-14 08:47 · Alexander Sacharov** — question (open, to parent jaira-34): 1) Format: (a, recommended) settings.json "models": {"cheap":"sonnet","strong":"opus"} and one board file .jaira/models with lines 'cheap = sonnet' - one place, a line per tier, git merges by line; (b) one key per tier, model-cheap/model-strong, and one file per tier .jaira/model-<tier> - exactly like chat-model, but a new file for each tier. 2) Worker/dispatch tab: (a, recommended) an entry 'worker' in the same map whose value is a model; missing -> model of strong - set like everything else, per machine and per board; (b) a setting 'worker-tier' that names a tier (cheap|strong), default strong - no model name twice, but sonnet for the worker only works if some tier maps to sonnet.
+- **2026-10-14 11:22 · Alexander Sacharov** — decision (Alex via jaira-34): 1a 2a. settings.json "models": {"cheap":"sonnet","strong":"opus"} plus board file .jaira/models with lines 'cheap = sonnet'. Worker/dispatch tab: entry 'worker' in the same map holding a model; no entry -> the model of strong.
+- **2026-10-14 11:23 · Alexander Sacharov** — plan reasoning: spawn.sh gets the model in one call, 'jaira roles list --json' (it already reads chat_model there). Resolved in Go per lane as lane_models.<lane> because 'jaira json get' cannot filter an array, and 'show --for-lane' would compute a whole diff just to read a tier. Lane tier, not ticket tier: --for-lane also reports l.ModelTier.
+- **2026-10-14 11:25 · Alexander Sacharov** — pause: DoD 1 done (settings.Models, .jaira/models, ModelFor), diff sent to jaira-34, waiting for ok. Next: roles list --json lane_models/worker_model, then spawn.sh. Critique beside the work runs in Herdr tab w3:pGV (session jaira-n2qt94-ab).
+- **2026-10-14 11:33 · Alexander Sacharov** — decision (Alex, typed in this tab): DoD 1 ok. Plus a third tier: mini = haiku. Needs no new code - model-tier is a free alias (core/lane/lane.go checks only that an agentic lane has one), so a lane with model-tier: mini and a line 'mini = haiku' works. Covered in the test and shown in docs/AGENTS.md and the release note as the third example.
+- **2026-10-14 11:36 · Alexander Sacharov** — pause: DoD 2-4 done (roles list --json lane_models/worker_model; spawn.sh one $model for every tab; tests in core/role incl. wsl + git bash via real jaira with JAIRA_HOME). The platform test now sets JAIRA_HOME: before, it ran the real jaira against the machine's own ~/.jaira/settings.json, so a 'models' entry there would have changed its expected command line. Waiting for Alex's ok on the diff; next docs/AGENTS.md + release note.
+- **2026-10-14 12:24 · Alexander Sacharov** — critique beside the work (jaira-n2qt94-ab): no findings on settings.go, roles.go, spawn.sh, role_test.go; docs and release note not yet read. Its tab is closed; the critique lane after in-progress reads DoD 5/6.
+- **2026-10-14 13:09 · Alexander Sacharov** — decision (Alex via jaira-34): conversational mode cleared; work autonomously from here, commit finished DoD items, carry through all lanes up to signoff.

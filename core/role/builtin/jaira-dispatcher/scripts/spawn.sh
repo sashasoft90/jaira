@@ -33,9 +33,13 @@ finding explained, or the ticket's open question talked through — and are what
 the jaira-cockpit mod's buttons start, with --no-worktree. They start claude on
 the board's .jaira/chat-model, else "chat-model" in ~/.jaira/settings.json, else
 the account's default — and get the part of the ticket they need in their
-prompt. <pr> starts /jaira-role-pr <ticket-id> --by-person: the cockpit's Accept
-starts it when a person accepted a ticket whose branch has no pull request yet,
-and nothing else may.
+prompt. <worker> and <dispatch> start on the "worker" entry of the board's
+.jaira/models, else of "models" in ~/.jaira/settings.json, else on the model of
+strong; every other lane on the model its model-tier maps to there. Nothing
+mapped: no --model, the account's default. <pr> starts
+/jaira-role-pr <ticket-id> --by-person: the cockpit's Accept starts it when a
+person accepted a ticket whose branch has no pull request yet, and nothing else
+may.
 Every other lane name starts /jaira-role-lane <ticket-id> <lane>.
 
 Environment: JAIRA_BRANCH_PREFIX (default feat), JAIRA_NO_WORKTREE,
@@ -161,23 +165,36 @@ if [ -n "${HERDR_WORKSPACE_ID:-}" ]; then ws=(--workspace "$HERDR_WORKSPACE_ID")
 pane="$("$herdr" tab create ${ws[@]+"${ws[@]}"} --cwd "$cwd" --label "$ticket/$lane" --no-focus \
   | jaira json get result.root_pane.pane_id)"
 
-# <explain> and <discuss> write a few lines for a person, so they start on the
-# chat model 'jaira roles list' names for this board (its .jaira/chat-model,
-# else this machine's settings.json) rather than the account's default model,
-# and they get the part of the ticket they need typed into their prompt rather
-# than reading the whole of it: 'jaira show --json' carries every note and every DoD proof, most
-# of a chat's context for nothing. When jaira cannot answer, both stay as they
-# were — the account's model, and a prompt that reads the ticket itself.
-chat_model=""
+# Every tab starts on the model 'jaira roles list' names for it, so the board's
+# .jaira/models, else "models" in ~/.jaira/settings.json, decides what a tab
+# costs rather than the account's default model. A lane gets the model of its
+# model-tier (lane_models); <worker> and <dispatch>, which carry a whole ticket
+# through lanes of every tier, get the "worker" entry, else the model of strong
+# (worker_model). <explain> and <discuss> write a few lines for a person and
+# start on the chat model instead (the board's .jaira/chat-model, else
+# "chat-model" in settings.json); they also get the part of the ticket they
+# need typed into their prompt rather than reading the whole of it: 'jaira show
+# --json' carries every note and every DoD proof, most of a chat's context for
+# nothing. When jaira cannot answer, every tab stays as it was — the account's
+# model, and a chat prompt that reads the ticket itself.
+roles="$(jaira -C "$wt" roles list --json 2>/dev/null)" || roles=""
+case "$lane" in
+  explain|discuss) key=chat_model ;;
+  worker|dispatch) key=worker_model ;;
+  pr)              key="" ;;
+  *)               key="lane_models.$lane" ;;
+esac
+model=""
+if [ -n "$key" ]; then
+  model="$(jaira json get "$key" --default "" <<<"$roles" 2>/dev/null)" || model=""
+fi
+# It lands in a command line: only a model name passes.
+[[ "$model" =~ ^[][A-Za-z0-9._-]*$ ]] || model=""
 brief=""
 if [ "$lane" = explain ] || [ "$lane" = discuss ]; then
-  chat_model="$(jaira -C "$wt" roles list --json 2>/dev/null \
-    | jaira json get chat_model 2>/dev/null)" || chat_model=""
-  # It lands in a command line: only a model name passes.
-  [[ "$chat_model" =~ ^[][A-Za-z0-9._-]*$ ]] || chat_model=""
   brief="$(jaira -C "$wt" show "$ticket" --brief 2>/dev/null)" || brief=""
 fi
-claude="claude${chat_model:+ --model '$chat_model'}"
+claude="claude${model:+ --model '$model'}"
 
 # The tab's shell runs on the machine Herdr itself runs on. When that is Windows
 # and this script runs in WSL, that shell has no /home/... at all: --cwd is
@@ -196,7 +213,7 @@ claude="claude${chat_model:+ --model '$chat_model'}"
 # needs no quotes — only letters, digits and . _ - [ ] pass.
 case "$on" in
   wsl)     start="wsl.exe --cd '$wt' -- bash -lic \"$claude\"" ;;
-  windows) start="claude${chat_model:+ --model $chat_model}" ;;
+  windows) start="claude${model:+ --model $model}" ;;
   *)       start="cd '$cwd' && $claude" ;;
 esac
 

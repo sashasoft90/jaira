@@ -242,6 +242,40 @@ func TestChatModelName(t *testing.T) {
 	}
 }
 
+// A tier's model comes from the board's .jaira/models before the machine's
+// settings.json, entry by entry; the worker key falls back to strong; a tier
+// nobody maps, and a value that is no model name, means no --model.
+func TestModelForReadsTheBoardThenTheMachine(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".jaira"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	s := settings.Settings{Models: map[string]string{"cheap": "haiku", "strong": "opus", "odd": "$(id)"}}
+	if got, src := s.ModelFor(root, "cheap"); got != "haiku" || !strings.Contains(src, "settings.json") {
+		t.Errorf("no board file: cheap %q (%s), want haiku from settings.json", got, src)
+	}
+	if got, src := s.ModelFor(root, settings.WorkerModelKey); got != "opus" || !strings.Contains(src, "strong") {
+		t.Errorf("no worker entry: %q (%s), want the model of strong", got, src)
+	}
+	board := "# tiers\n\ncheap = sonnet\nmini = haiku\nworker=claude-sonnet-5-5\nnot a line\nstrong = rm -rf ~\n"
+	if err := os.WriteFile(settings.BoardModelsPath(root), []byte(board), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for key, want := range map[string]string{
+		"cheap": "sonnet", "mini": "haiku", "worker": "claude-sonnet-5-5", "strong": "opus", "odd": "", "fast": "", "": "",
+	} {
+		if got, _ := s.ModelFor(root, key); got != want {
+			t.Errorf("board file: %q -> %q, want %q", key, got, want)
+		}
+	}
+	if got, src := (settings.Settings{}).ModelFor(root, "cheap"); got != "sonnet" || !strings.Contains(src, ".jaira/models") {
+		t.Errorf("board file, no machine setting: %q (%s), want sonnet from .jaira/models", got, src)
+	}
+	if got, src := (settings.Settings{}).ModelFor("", settings.WorkerModelKey); got != "" || src != "nothing configured" {
+		t.Errorf("nothing set: worker %q (%s), want the account default", got, src)
+	}
+}
+
 // The board's own chat model wins over the machine's, and removing it lets the
 // machine's apply again; a board file holding no model name counts as none.
 func TestChatModelForPrefersTheBoard(t *testing.T) {

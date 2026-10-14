@@ -528,8 +528,11 @@ func TestPRFilesTheTicketsAwayBeforeThePush(t *testing.T) {
 }
 
 // The cockpit's chats start on the chat-model setting and get the part of the
-// ticket they need typed in, instead of reading the whole of it; every other
-// lane starts plain claude as before. jaira and Herdr are stubs: jaira answers
+// ticket they need typed in, instead of reading the whole of it; a lane starts
+// on the model of its tier, a worker or dispatch tab on worker_model, and
+// with nothing configured every tab starts plain claude as before. What
+// 'jaira roles list' resolves is TestModelForReadsTheBoardThenTheMachine in
+// core/settings; here it is a stub. jaira and Herdr are stubs: jaira answers
 // the two calls spawn.sh makes and hands 'json get' to the real one, Herdr
 // records what it is asked to run and type. What goes into the brief is
 // TestTicketBriefCarriesTheNewestNotes in internal/cli.
@@ -561,7 +564,7 @@ esac
 	jaira := `#!/usr/bin/env bash
 case "$*" in
   "json "*) exec "` + filepath.Join(real, "jaira") + `" "$@" ;;
-  "-C "*" roles list --json") printf '{"chat_model": "%s"}\n' "$(cat "` + model + `")" ;;
+  "-C "*" roles list --json") cat "` + model + `" ;;
   *" show AB12CD --brief") cat <<'JSON'
 ` + brief + `
 JSON
@@ -575,9 +578,9 @@ esac
 		}
 	}
 	spawn := filepath.Join(dir, "jaira-dispatcher", "scripts", "spawn.sh")
-	run := func(lane, chatModel string) (start, prompt string) {
+	run := func(lane, roles string) (start, prompt string) {
 		t.Helper()
-		if err := os.WriteFile(model, []byte(chatModel), 0o644); err != nil {
+		if err := os.WriteFile(model, []byte(roles), 0o644); err != nil {
 			t.Fatal(err)
 		}
 		cmd := spawnOn(bash, "Linux", spawn, "--no-worktree", "ab12cd", "AB12CD", lane)
@@ -593,7 +596,7 @@ esac
 	}
 
 	for _, lane := range []string{"explain", "discuss"} {
-		start, prompt := run(lane, "sonnet")
+		start, prompt := run(lane, `{"chat_model": "sonnet", "lane_models": {"explain": "opus"}}`)
 		if !strings.HasSuffix(start, "&& claude --model 'sonnet'") {
 			t.Errorf("%s started %q, want claude --model 'sonnet'", lane, start)
 		}
@@ -612,14 +615,31 @@ esac
 			t.Errorf("%s prompt spans lines; a newline typed into the tab sends it early:\n%s", lane, prompt)
 		}
 	}
-	if start, _ := run("explain", ""); !strings.HasSuffix(start, "&& claude") {
+	if start, _ := run("explain", `{"chat_model": ""}`); !strings.HasSuffix(start, "&& claude") {
 		t.Errorf("no chat-model: started %q, want plain claude, the account default", start)
 	}
-	if start, _ := run("explain", "x'; rm -rf ~; '"); !strings.HasSuffix(start, "&& claude") {
+	if start, _ := run("explain", `{"chat_model": "x'; rm -rf ~; '"}`); !strings.HasSuffix(start, "&& claude") {
 		t.Errorf("a chat-model that is no model name reached the command line: %q", start)
 	}
-	if start, prompt := run("review", "sonnet"); !strings.HasSuffix(start, "&& claude") || prompt != "/jaira-role-lane AB12CD review" {
-		t.Errorf("a lane must keep plain claude and its role: started %q, typed %q", start, prompt)
+
+	// A lane's tab starts on its tier's model, a tab carrying a whole ticket on
+	// the worker's; a lane nothing maps, and a jaira that cannot answer, start
+	// plain claude.
+	tiers := `{"chat_model": "sonnet", "worker_model": "opus", "lane_models": {"review": "opus", "in-progress": "haiku"}}`
+	for _, c := range []struct{ lane, roles, want, typed string }{
+		{"review", tiers, "&& claude --model 'opus'", "/jaira-role-lane AB12CD review"},
+		{"in-progress", tiers, "&& claude --model 'haiku'", "/jaira-role-lane AB12CD in-progress"},
+		{"worker", tiers, "&& claude --model 'opus'", "/jaira-worker AB12CD"},
+		{"dispatch", tiers, "&& claude --model 'opus'", "/jaira-dispatcher AB12CD"},
+		{"testing", tiers, "&& claude", "/jaira-role-lane AB12CD testing"},
+		{"pr", tiers, "&& claude", "/jaira-role-pr AB12CD --by-person"},
+		{"review", `{}`, "&& claude", "/jaira-role-lane AB12CD review"},
+		{"worker", ``, "&& claude", "/jaira-worker AB12CD"},
+		{"review", `{"lane_models": {"review": "$(id)"}}`, "&& claude", "/jaira-role-lane AB12CD review"},
+	} {
+		if start, prompt := run(c.lane, c.roles); !strings.HasSuffix(start, c.want) || prompt != c.typed {
+			t.Errorf("%s with %s: started %q, typed %q; want ...%s and %q", c.lane, c.roles, start, prompt, c.want, c.typed)
+		}
 	}
 }
 
@@ -627,7 +647,8 @@ esac
 // tells the two apart by the machine it runs on (issue #79): in WSL the tab
 // crosses back with wsl.exe --cd; in Git Bash it starts claude where it is,
 // in the worktree as Windows spells it. uname and cygpath are stubbed, so both
-// cases run on any machine, Windows included.
+// cases run on any machine, Windows included. Both carry the model of the
+// lane's tier, read by the real jaira from a settings.json of the test's own.
 func TestSpawnStartsClaudeWhereItsShellRuns(t *testing.T) {
 	bash, err := exec.LookPath("bash")
 	if err != nil {
@@ -642,9 +663,10 @@ func TestSpawnStartsClaudeWhereItsShellRuns(t *testing.T) {
 	for _, c := range []struct {
 		name, uname, distro, wantCwd, wantStart string
 	}{
-		{"wsl", "Linux", "Ubuntu", "<wt>", "wsl.exe --cd '<wt>' -- bash -lic \"claude\""},
-		// cmd and PowerShell 5.1 know no &&: --cwd puts the tab in place.
-		{"git bash", "MINGW64_NT-10.0-22631", "", `C:\work\repo`, `claude`},
+		{"wsl", "Linux", "Ubuntu", "<wt>", "wsl.exe --cd '<wt>' -- bash -lic \"claude --model 'opus'\""},
+		// cmd and PowerShell 5.1 know no &&, nor single quotes: --cwd puts
+		// the tab in place, and the model goes in bare.
+		{"git bash", "MINGW64_NT-10.0-22631", "", `C:\work\repo`, `claude --model opus`},
 	} {
 		bin := t.TempDir()
 		ran := filepath.Join(bin, "ran")
@@ -659,10 +681,14 @@ esac
 		if err := os.WriteFile(filepath.Join(bin, "herdr.exe"), []byte(herdr), 0o755); err != nil {
 			t.Fatal(err)
 		}
+		home := t.TempDir()
+		if err := os.WriteFile(filepath.Join(home, "settings.json"), []byte(`{"models": {"strong": "opus"}}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
 		wt := t.TempDir()
 		cmd := spawnOn(bash, c.uname, spawn, "--no-worktree", "ab12cd", "AB12CD", "review", wt)
 		cmd.Dir = wt
-		cmd.Env = append(os.Environ(), "HERDR_ENV=1", "HERDR_BIN_PATH="+filepath.Join(bin, "herdr.exe"),
+		cmd.Env = append(os.Environ(), "HERDR_ENV=1", "HERDR_BIN_PATH="+filepath.Join(bin, "herdr.exe"), "JAIRA_HOME="+home,
 			"HERDR_WORKSPACE_ID=", "WSL_DISTRO_NAME="+c.distro, "PATH="+bin+string(os.PathListSeparator)+path)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("%s: spawn.sh: %v\n%s", c.name, err, out)

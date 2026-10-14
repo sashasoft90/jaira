@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/BeMuCa/jaira/core/board"
+	"github.com/BeMuCa/jaira/core/lane"
 	"github.com/BeMuCa/jaira/core/role"
 	"github.com/BeMuCa/jaira/core/settings"
 )
@@ -46,6 +47,12 @@ the board's own .jaira/chat-model first, then "chat-model" in settings.json —
 carried as chat_model, empty for the account's own default, and where it came
 from as chat_model_source.
 
+And which model each lane's tab starts on: the lane's model-tier looked up in
+the board's .jaira/models first, then "models" in settings.json — carried as
+lane_models, lane id to model, with only the lanes whose tier maps to one. A
+tab that carries a whole ticket (worker, dispatch) starts on the "worker"
+entry, else the model of "strong": worker_model and worker_model_source.
+
 And which command the roles run their Python scripts with: JAIRA_PYTHON first,
 then "python" in settings.json, else python3 — carried as python, and where it
 came from as python_source. A command, so "uv run python" works too.`,
@@ -60,8 +67,22 @@ came from as python_source. A command, so "uv run python" works too.`,
 			// this list to know what it can start, and which of two it starts
 			// for a ticket is the same question.
 			cur := settings.Load()
-			chat, chatSource := cur.ChatModelFor(bestEffortRoot())
+			root := bestEffortRoot()
+			chat, chatSource := cur.ChatModelFor(root)
 			py, pySource := cur.PythonCommand()
+			worker, workerSource := cur.ModelFor(root, settings.WorkerModelKey)
+			// Resolved per lane here, not per tier in spawn.sh: 'jaira json
+			// get' cannot pick a lane out of an array, and this keeps the
+			// script to one lookup. Lanes that cannot be read map to nothing,
+			// so every tab starts as it did before there was a setting.
+			laneModels := map[string]string{}
+			if set, err := lane.Load(root); err == nil {
+				for _, l := range set.Lanes {
+					if m, _ := cur.ModelFor(root, l.ModelTier); m != "" {
+						laneModels[l.ID] = m
+					}
+				}
+			}
 			if g.jsonOut {
 				arr := make([]map[string]any, 0, len(roles))
 				for _, r := range roles {
@@ -74,6 +95,7 @@ came from as python_source. A command, so "uv run python" works too.`,
 					"roles": arr, "dispatch": cur.DispatchMode(), "dispatch_role": cur.DispatchRole(),
 					"chat_model": chat, "chat_model_source": chatSource,
 					"python": py, "python_source": pySource,
+					"lane_models": laneModels, "worker_model": worker, "worker_model_source": workerSource,
 				})
 			}
 			fmt.Fprintf(w, "%-24s %s\n", "ID", "DESCRIPTION")
@@ -84,6 +106,8 @@ came from as python_source. A command, so "uv run python" works too.`,
 				cur.DispatchMode(), cur.DispatchRole(), settings.Path())
 			fmt.Fprintf(w, "chat model: %s — what the cockpit's explain and discuss chats start on (%s)\n",
 				cmp.Or(chat, "account default"), chatSource)
+			fmt.Fprintf(w, "worker model: %s — what a tab carrying a whole ticket starts on (%s)\n",
+				cmp.Or(worker, "account default"), workerSource)
 			fmt.Fprintf(w, "python: %s — what the roles run their Python scripts with (%s)\n", py, pySource)
 			return nil
 		},

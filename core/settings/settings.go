@@ -120,6 +120,18 @@ type Settings struct {
 	// costs is the team's choice. Read it through ChatModelFor.
 	ChatModel string `json:"chat-model,omitempty"`
 
+	// Models maps a lane's model-tier (cheap, strong, or whatever alias a
+	// lane file declares) to the model spawn.sh starts that lane's tab on,
+	// as 'claude --model' takes it. The key "worker" is no tier: it is the
+	// model of a tab that carries a whole ticket — jaira-worker or
+	// jaira-dispatcher — and without it such a tab gets the model of
+	// "strong". A tier with no entry gets no --model: the account default.
+	//
+	// Like ChatModel this is the machine's fallback, entry by entry: a board
+	// that names a key in .jaira/models wins for that key. Read it through
+	// ModelFor.
+	Models map[string]string `json:"models,omitempty"`
+
 	// Python is the command a role runs its Python scripts with — the
 	// acceptance page, the logbook summary. A command, not a path, so
 	// "uv run python" works as well as "py -3": on Windows python3 is often
@@ -208,6 +220,68 @@ func (s Settings) ChatModelFor(root string) (name, source string) {
 	}
 	if m := modelName(s.ChatModel); m != "" {
 		return m, "from settings.json on this machine"
+	}
+	return "", "nothing configured"
+}
+
+// WorkerModelKey is the key in Models, and in .jaira/models, that names the
+// model of a tab carrying a whole ticket rather than one lane.
+const WorkerModelKey = "worker"
+
+// modelsFile is the board's own tier -> model map under .jaira: a line per
+// key, "cheap = sonnet", shared with everybody who works the board. One file
+// for every tier, a line each, because a line is what git merges.
+const modelsFile = "models"
+
+// BoardModelsPath is where the board at root maps its tiers to models.
+func BoardModelsPath(root string) string {
+	return filepath.Join(root, ticket.DirName, modelsFile)
+}
+
+// BoardModels returns the entries the board at root names, keyed by tier.
+// A missing file is an empty map; a line that is no "key = model", or whose
+// model is no model name, is skipped rather than carried into a command line.
+func BoardModels(root string) map[string]string {
+	out := map[string]string{}
+	b, err := os.ReadFile(BoardModelsPath(root))
+	if err != nil {
+		return out
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		k, v, ok := strings.Cut(line, "=")
+		k = strings.TrimSpace(k)
+		if m := modelName(v); ok && k != "" && m != "" {
+			out[k] = m
+		}
+	}
+	return out
+}
+
+// ModelFor returns the model for one key of the tier map — a lane's tier, or
+// WorkerModelKey — and where it came from in words a person can read: the
+// board's .jaira/models first, then this machine's settings.json, else ""
+// (no --model, the account's own default). The worker key with no entry
+// anywhere answers as "strong" does. root may be "" outside any board.
+func (s Settings) ModelFor(root, key string) (name, source string) {
+	if key == "" {
+		return "", "nothing configured"
+	}
+	if root != "" {
+		if m := BoardModels(root)[key]; m != "" {
+			return m, "from .jaira/models, shared with the board"
+		}
+	}
+	if m := modelName(s.Models[key]); m != "" {
+		return m, "from settings.json on this machine"
+	}
+	if key == WorkerModelKey {
+		if m, src := s.ModelFor(root, "strong"); m != "" {
+			return m, "the model of strong, " + src
+		}
 	}
 	return "", "nothing configured"
 }
